@@ -1,0 +1,65 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "logs\\.d93ed8de5f2fff0ffc726b519b29e349186d27c2-audit.json",
+    "files": [
+        {
+            "date": 1752610229353,
+            "name": "logs\\error-2025-07-16.log",
+            "hash": "b7f9588f60d48de1b5880d161277bf613d8e9acb633612c5fb23d715b1ce32f6"
+        },
+        {
+            "date": 1753018794901,
+            "name": "logs\\error-2025-07-20.log",
+            "hash": "4954b0db8cbda8a958f70c7be84d6760ffc493c368bf7ff33c411a488e213e62"
+        },
+        {
+            "date": 1753070769614,
+            "name": "logs\\error-2025-07-21.log",
+            "hash": "25a1fcdae6b1aa6c88d33859cc00fb95d10d6c6ac49ef2428436c4f00e89d9e8"
+        },
+        {
+            "date": 1753115208260,
+            "name": "logs\\error-2025-07-22.log",
+            "hash": "9dcc2233e93d38ff8bf820f28ac0ba90c0fb287622b48a4f6fcc9d1188faad61"
+        },
+        {
+            "date": 1753241559737,
+            "name": "logs\\error-2025-07-23.log",
+            "hash": "8ec8d57f1c2366b175c6a50f974e0b399199ee11b33c1de7af615b545e33668d"
+        },
+        {
+            "date": 1753294697307,
+            "name": "logs\\error-2025-07-24.log",
+            "hash": "77dd4fbeaaed5e6e4bff395da206f0f146d52231bc9df51ab62af681c54ca8cc"
+        },
+        {
+            "date": 1753383556891,
+            "name": "logs\\error-2025-07-25.log",
+            "hash": "0e38904f31f43a44ffb86e64c0d2550c3c2ee5daa6031cfe52a3a339d61e8246"
+        },
+        {
+            "date": 1753465544307,
+            "name": "logs\\error-2025-07-26.log",
+            "hash": "a73352c5da24e2ceae9185dce385d8b0fbb8d5670d1aedd1572254245d73cf7e"
+        },
+        {
+            "date": 1753621552627,
+            "name": "logs\\error-2025-07-27.log",
+            "hash": "6a056a3cc0e545e279ecfc3becaea690492ba72f16da0adf016f421d9342d367"
+        },
+        {
+            "date": 1753639493520,
+            "name": "logs\\error-2025-07-28.log",
+            "hash": "a494f1ed0fa4589ecac92e08c9e54b8a6527efcce3c866ba961e6142c089828f"
+        },
+        {
+            "date": 1753683935281,
+            "name": "logs/error-2025-07-28.log",
+            "hash": "2d1f37d1f7b71ce3f7db5a739bd2a7cf65558d6faca9e38f659962ade41f6c37"
+        }
+    ],
+    "hashType": "sha256"
+}

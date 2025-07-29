@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="35" failures="1" errors="0" time="6.805">
+  <testsuite name="src\__tests__\integration\api\cart.api.test.ts" errors="0" failures="0" skipped="0" timestamp="2025-06-25T17:34:35" time="4.679" tests="16">
+    <testcase classname="Cart API Integration Tests 기본 장바구니 CRUD" name="장바구니 추가 → 조회 → 수정 → 삭제 전체 플로우" time="0.47">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 기본 장바구니 CRUD" name="빈 장바구니 조회" time="0.048">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 헬스체크" name="서비스 헬스체크 성공" time="0.035">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 헬스체크" name="서비스 정보 조회 성공" time="0.038">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 사용자/세션 기반 장바구니" name="세션 장바구니에서 사용자 장바구니로 이전" time="0.197">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 사용자/세션 기반 장바구니" name="기존 사용자 장바구니와 세션 장바구니 병합" time="0.239">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 에러 시나리오" name="존재하지 않는 상품 추가 시도" time="0.058">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 에러 시나리오" name="재고 부족 상품 추가 시도" time="0.038">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 에러 시나리오" name="잘못된 수량으로 상품 추가 시도" time="0.039">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 에러 시나리오" name="잘못된 상품 ID로 상품 추가 시도" time="0.035">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 에러 시나리오" name="존재하지 않는 장바구니에서 상품 제거 시도" time="0.047">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 장바구니 비우기" name="장바구니 전체 비우기" time="0.228">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 캐시 동작 검증" name="장바구니 추가 후 캐시 확인" time="0.121">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 캐시 동작 검증" name="캐시 TTL 확인" time="0.121">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 동시성 처리" name="동일 장바구니에 여러 상품 동시 추가" time="0.212">
+    </testcase>
+    <testcase classname="Cart API Integration Tests 동시성 처리" name="동일 상품 동시 수량 변경" time="0.241">
+    </testcase>
+  </testsuite>
+  <testsuite name="src\__tests__\integration\api\health.api.test.ts" errors="0" failures="1" skipped="0" timestamp="2025-06-25T17:34:40" time="1.978" tests="19">
+    <testcase classname="Health API Integration Tests 기본 헬스체크" name="GET /health - 서비스 상태 확인" time="0.04">
+    </testcase>
+    <testcase classname="Health API Integration Tests 기본 헬스체크" name="헬스체크 응답 시간 확인 (성능)" time="0.022">
+    </testcase>
+    <testcase classname="Health API Integration Tests 기본 헬스체크" name="연속 헬스체크 요청 처리" time="0.047">
+    </testcase>
+    <testcase classname="Health API Integration Tests 서비스 정보 API" name="GET /api/v1/info - 서비스 정보 조회" time="0.02">
+    </testcase>
+    <testcase classname="Health API Integration Tests 서비스 정보 API" name="서비스 정보 일관성 확인" time="0.03">
+    </testcase>
+    <testcase classname="Health API Integration Tests 404 및 에러 처리" name="존재하지 않는 엔드포인트 - 404 처리" time="0.02">
+    </testcase>
+    <testcase classname="Health API Integration Tests 404 및 에러 처리" name="잘못된 HTTP 메서드 - 404 처리" time="0.02">
+    </testcase>
+    <testcase classname="Health API Integration Tests 404 및 에러 처리" name="빈 요청 경로 처리" time="0.022">
+    </testcase>
+    <testcase classname="Health API Integration Tests 보안 헤더 확인" name="기본 보안 헤더 존재 확인" time="0.021">
+    </testcase>
+    <testcase classname="Health API Integration Tests 보안 헤더 확인" name="CORS 헤더 확인" time="0.022">
+    </testcase>
+    <testcase classname="Health API Integration Tests 보안 헤더 확인" name="응답 시간 헤더 부재 확인 (정보 누출 방지)" time="0.019">
+    </testcase>
+    <testcase classname="Health API Integration Tests 부하 및 안정성" name="동시 요청 처리 (부하 테스트)" time="0.134">
+    </testcase>
+    <testcase classname="Health API Integration Tests 부하 및 안정성" name="연속 요청 안정성 테스트" time="0.646">
+    </testcase>
+    <testcase classname="Health API Integration Tests 부하 및 안정성" name="메모리 리크 방지 확인" time="0.302">
+      <failure>Error: expect(received).toBeLessThan(expected)
+
+Expected: &lt; 10485760
+Received:   16379944
+    at Object.&lt;anonymous&gt; (C:\Users\sohap\vscodePj\microservice-shopping-mall\cart-service\src\__tests__\integration\api\health.api.test.ts:258:30)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)</failure>
+    </testcase>
+    <testcase classname="Health API Integration Tests 다양한 요청 형태" name="다양한 Accept 헤더 처리" time="0.049">
+    </testcase>
+    <testcase classname="Health API Integration Tests 다양한 요청 형태" name="User-Agent 헤더 처리" time="0.037">
+    </testcase>
+    <testcase classname="Health API Integration Tests 다양한 요청 형태" name="대용량 요청 헤더 처리" time="0.023">
+    </testcase>
+    <testcase classname="Health API Integration Tests 타임아웃 및 응답성" name="헬스체크 빠른 응답 시간" time="0.033">
+    </testcase>
+    <testcase classname="Health API Integration Tests 타임아웃 및 응답성" name="서비스 정보 응답 시간" time="0.02">
+    </testcase>
+  </testsuite>
+</testsuites>

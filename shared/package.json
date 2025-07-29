@@ -1,0 +1,30 @@
+{
+  "name": "@shopping-mall/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities and types for microservice shopping mall",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "microservice",
+    "shared",
+    "utilities",
+    "types"
+  ],
+  "author": "Shopping Mall Team",
+  "license": "ISC",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/uuid": "^9.0.7",
+    "typescript": "^5.3.3"
+  }
+}

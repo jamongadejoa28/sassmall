@@ -1,0 +1,23 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./client"
+    },
+    {
+      "path": "./product-service"
+    },
+    {
+      "path": "./cart-service"
+    },
+    {
+      "path": "./user-service"
+    },
+    {
+      "path": "./api-gateway"
+    },
+    {
+      "path": "./shared"
+    }
+  ]
+}

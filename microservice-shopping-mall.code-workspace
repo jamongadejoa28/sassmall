@@ -1,0 +1,45 @@
+{
+  "folders": [
+    {
+      "name": "Root",
+      "path": "."
+    },
+    {
+      "name": "Client",
+      "path": "./client"
+    },
+    {
+      "name": "Product Service",
+      "path": "./product-service"
+    },
+    {
+      "name": "Cart Service", 
+      "path": "./cart-service"
+    },
+    {
+      "name": "User Service",
+      "path": "./user-service"
+    },
+    {
+      "name": "API Gateway",
+      "path": "./api-gateway"
+    },
+    {
+      "name": "Shared",
+      "path": "./shared"
+    }
+  ],
+  "settings": {
+    "typescript.preferences.preference": "project-relative",
+    "typescript.validate.enable": true,
+    "typescript.suggest.paths": true,
+    "typescript.preferences.includePackageJsonAutoImports": "auto"
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.vscode-typescript-next",
+      "esbenp.prettier-vscode",
+      "ms-vscode.vscode-eslint"
+    ]
+  }
+}
