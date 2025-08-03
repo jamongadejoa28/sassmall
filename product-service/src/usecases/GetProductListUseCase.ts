@@ -52,6 +52,8 @@ export interface ProductListResponse {
     tags: string[];
     slug: string;
     is_active: boolean; // ✅ is_active 필드 추가
+    image_urls?: string[]; // 상품 이미지 URL 배열
+    thumbnail_url?: string | undefined; // 대표 이미지 URL
     category: {
       id: string;
       name: string;
@@ -464,6 +466,8 @@ export class GetProductListUseCase {
           tags: product.getTags(),
           slug: slug,
           is_active: product.isActive(), // is_active 필드 추가
+          image_urls: product.getImageUrls(), // 상품 이미지 URL 배열
+          thumbnail_url: product.getThumbnailUrl(), // 대표 이미지 URL
           category: {
             id: category?.getId() || "",
             name: category?.getName() || "미분류",
@@ -503,6 +507,8 @@ export class GetProductListUseCase {
           tags: product.getTags(),
           slug: this.generateSlug(product.getName()),
           is_active: product.isActive(), // is_active 필드 추가
+          image_urls: product.getImageUrls(), // 상품 이미지 URL 배열
+          thumbnail_url: product.getThumbnailUrl(), // 대표 이미지 URL
           category: {
             id: "",
             name: "미분류",

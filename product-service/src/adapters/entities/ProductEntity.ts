@@ -146,6 +146,38 @@ export class ProductEntity {
   })
   discountPercentage!: number;
 
+  // 이미지 관련 필드들
+  @Column({
+    type: "jsonb",
+    nullable: true,
+    name: "image_urls",
+    transformer: {
+      to: (value: string[] | undefined) => (value ? JSON.stringify(value) : null),
+      from: (value: string | string[] | null) => {
+        if (value === null || value === undefined) return [];
+        if (Array.isArray(value)) return value;
+        if (typeof value === "string") {
+          try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      },
+    },
+  })
+  imageUrls?: string[];
+
+  @Column({
+    type: "varchar",
+    length: 500,
+    nullable: true,
+    name: "thumbnail_url",
+  })
+  thumbnailUrl?: string;
+
   @CreateDateColumn({
     type: process.env.NODE_ENV === "test" ? "datetime" : "timestamp",
     name: "created_at",
@@ -234,6 +266,17 @@ export class ProductEntity {
       entity.discountPercentage = discountPercentage;
     }
 
+    // 이미지 필드 추가
+    const imageUrls = product.getImageUrls();
+    if (imageUrls !== undefined) {
+      entity.imageUrls = imageUrls;
+    }
+
+    const thumbnailUrl = product.getThumbnailUrl();
+    if (thumbnailUrl !== undefined) {
+      entity.thumbnailUrl = thumbnailUrl;
+    }
+
     return entity;
   }
 
@@ -275,6 +318,15 @@ export class ProductEntity {
 
     if (this.discountPercentage !== undefined) {
       productData.discountPercentage = this.discountPercentage;
+    }
+
+    // 이미지 필드 추가
+    if (this.imageUrls !== undefined) {
+      productData.imageUrls = this.imageUrls;
+    }
+
+    if (this.thumbnailUrl !== undefined) {
+      productData.thumbnailUrl = this.thumbnailUrl;
     }
 
     return Product.restore(productData);

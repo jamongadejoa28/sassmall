@@ -108,6 +108,8 @@ export class CreateProductUseCase
         brand: request.brand,
         sku: request.sku,
         tags: request.tags || [],
+        imageUrls: request.imageUrls || [],
+        thumbnailUrl: request.thumbnailUrl,
       };
 
       // 선택적 속성 조건부 추가
@@ -140,21 +142,27 @@ export class CreateProductUseCase
       );
     }
 
-    if (initialStock.quantity < 0) {
+    // quantity가 null, undefined, 빈 문자열인 경우 0으로 처리
+    const quantity = initialStock.quantity ?? 0;
+    if (quantity < 0) {
       throw new DomainError(
         "재고 수량은 0 이상이어야 합니다",
         "INVALID_STOCK_QUANTITY"
       );
     }
 
-    if (initialStock.lowStockThreshold < 0) {
+    // lowStockThreshold가 없으면 기본값 10 사용
+    const lowStockThreshold = initialStock.lowStockThreshold ?? 10;
+    if (lowStockThreshold < 0) {
       throw new DomainError(
         "부족 임계값은 0 이상이어야 합니다",
         "INVALID_LOW_STOCK_THRESHOLD"
       );
     }
 
-    if (!initialStock.location || initialStock.location.trim().length === 0) {
+    // location이 없으면 기본값 사용
+    const location = initialStock.location || "MAIN_WAREHOUSE";
+    if (!location.trim().length) {
       throw new DomainError("저장 위치는 필수입니다", "LOCATION_REQUIRED");
     }
   }
@@ -242,6 +250,8 @@ export class CreateProductUseCase
         brand: request.brand,
         sku: request.sku,
         tags: request.tags || [],
+        imageUrls: request.imageUrls || [],
+        thumbnailUrl: request.thumbnailUrl,
       };
 
       // 선택적 속성 조건부 추가

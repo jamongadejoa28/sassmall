@@ -8,6 +8,8 @@ import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { v4 as uuidv4 } from 'uuid';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import multer from 'multer';
 
 // Define simple types locally
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,11 +38,7 @@ const getCurrentTimestamp = (): string => new Date().toISOString();
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const createLogger = (name: string) => console;
 
-import {
-  errorHandler,
-  notFoundHandler,
-  handleProcessExit,
-} from './middleware/errorHandler';
+// Local error handler implementation
 
 import { authRoutes } from './routes/auth';
 
@@ -78,6 +76,51 @@ function isAxiosError(error: unknown): error is AxiosErrorResponse {
 // ========================================
 const app = express();
 const logger = createLogger('api-gateway');
+
+// ========================================
+// 이미지 프록시 라우트 (최우선 처리)
+// ========================================
+
+// 정적 이미지 파일 프록시 - 다른 미들웨어보다 먼저 처리
+app.get('/uploads/products/:filename', async (req: Request, res: Response) => {
+  try {
+    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://127.0.0.1:3003';
+    const imageUrl = `${productServiceUrl}/uploads/products/${req.params.filename}`;
+    
+    console.log(`[API Gateway] Image proxy request: ${imageUrl}`);
+    
+    const response = await axios({
+      method: 'GET',
+      url: imageUrl,
+      responseType: 'stream',
+      timeout: 10000,
+    });
+    
+    // Content-Type 헤더 전달
+    if (response.headers['content-type']) {
+      res.set('Content-Type', response.headers['content-type']);
+    }
+    
+    // CORS 헤더 추가
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET');
+    
+    // 캐시 방지 헤더 추가 (이미지 업데이트 시 새로고침 보장)
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    
+    // 이미지 스트림을 클라이언트로 파이프
+    response.data.pipe(res);
+  } catch (error) {
+    console.error('Image proxy error:', error);
+    res.status(404).json({
+      success: false,
+      error: 'Image not found',
+      timestamp: getCurrentTimestamp(),
+    });
+  }
+});
 
 // ========================================
 // 기본 미들웨어 설정
@@ -378,55 +421,138 @@ app.use(`${API_VERSION}/categories`, async (req: Request, res: Response) => {
   }
 });
 
-// 상품 라우트 (Product Service로 프록시)
+// Multer 설정 (메모리 저장)
+const upload = multer({ storage: multer.memoryStorage() });
+
+// 상품 생성 라우트 (이미지 업로드 포함)
+app.post(`${API_VERSION}/products`, upload.array('images', 4), async (req: Request, res: Response) => {
+  try {
+    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://127.0.0.1:3003';
+    const FormData = require('form-data');
+    
+    const formData = new FormData();
+    
+    // productData 추가
+    if (req.body.productData) {
+      formData.append('productData', req.body.productData);
+    }
+    
+    // 썸네일 인덱스 추가
+    if (req.body.thumbnailIndex) {
+      formData.append('thumbnailIndex', req.body.thumbnailIndex);
+    }
+    
+    // 파일들 추가
+    const files = req.files as Express.Multer.File[];
+    if (files && Array.isArray(files)) {
+      files.forEach((file: Express.Multer.File) => {
+        formData.append('images', file.buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype,
+        });
+      });
+    }
+    
+    const proxyResponse = await axios({
+      method: 'POST',
+      url: `${productServiceUrl}/api/v1/products`,
+      data: formData,
+      headers: {
+        ...formData.getHeaders(),
+        'Authorization': req.headers.authorization,
+        'X-Request-ID': req.id,
+      },
+      timeout: 60000,
+    });
+
+    res.status(proxyResponse.status).json(proxyResponse.data);
+  } catch (error: unknown) {
+    const response: ApiResponse = {
+      success: false,
+      data: null,
+      error: (isAxiosError(error) && error.response?.data?.message) || 
+             (isAxiosError(error) && error.message) || 
+             'Product creation failed',
+      timestamp: getCurrentTimestamp(),
+      requestId: req.id,
+    };
+    res.status((isAxiosError(error) && error.response?.status) || 500).json(response);
+  }
+});
+
+// 상품 수정 라우트 (이미지 업로드 포함)
+app.put(`${API_VERSION}/products/:id`, upload.array('images', 4), async (req: Request, res: Response) => {
+  try {
+    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://127.0.0.1:3003';
+    const FormData = require('form-data');
+    
+    const formData = new FormData();
+    
+    // productData 추가
+    if (req.body.productData) {
+      formData.append('productData', req.body.productData);
+    }
+    
+    // 썸네일 인덱스 추가
+    if (req.body.thumbnailIndex) {
+      formData.append('thumbnailIndex', req.body.thumbnailIndex);
+    }
+    
+    // 파일들 추가
+    const files = req.files as Express.Multer.File[];
+    if (files && Array.isArray(files)) {
+      files.forEach((file: Express.Multer.File) => {
+        formData.append('images', file.buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype,
+        });
+      });
+    }
+    
+    const proxyResponse = await axios({
+      method: 'PUT',
+      url: `${productServiceUrl}/api/v1/products/${req.params.id}`,
+      data: formData,
+      headers: {
+        ...formData.getHeaders(),
+        'Authorization': req.headers.authorization,
+        'X-Request-ID': req.id,
+      },
+      timeout: 60000,
+    });
+
+    res.status(proxyResponse.status).json(proxyResponse.data);
+  } catch (error: unknown) {
+    const response: ApiResponse = {
+      success: false,
+      data: null,
+      error: (isAxiosError(error) && error.response?.data?.message) || 
+             (isAxiosError(error) && error.message) || 
+             'Product update failed',
+      timestamp: getCurrentTimestamp(),
+      requestId: req.id,
+    };
+    res.status((isAxiosError(error) && error.response?.status) || 500).json(response);
+  }
+});
+
+// 나머지 상품 라우트 (일반 프록시)
 app.use(`${API_VERSION}/products`, async (req: Request, res: Response) => {
   try {
-    const productServiceUrl =
-      process.env.PRODUCT_SERVICE_URL || 'http://127.0.0.1:3003';
-    // Use axios directly
-
-    // 요청 헤더 복사
+    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://127.0.0.1:3003';
     const headers = { ...req.headers };
-    delete headers.host; // host 헤더 제거
+    delete headers.host;
 
-    // Debug logging for product proxy requests
-    if (process.env.NODE_ENV === 'development') {
-      console.log(
-        `🔍 [API Gateway] Product proxy request: ${req.method} ${req.url}`
-      );
-      console.log(
-        `🔍 [API Gateway] Target URL: ${productServiceUrl}/api/v1/products${req.url}`
-      );
-    }
-
-    // Product Service로 프록시
-    // Use the full request URL to avoid query parameter duplication
     const proxyResponse = await axios({
       method: req.method,
       url: `${productServiceUrl}/api/v1/products${req.url}`,
       data: req.body,
       headers,
-      timeout: 30000, // 30초 타임아웃 설정
-      // Don't use params since req.url already contains query parameters
+      timeout: 30000,
     });
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(
-        `✅ [API Gateway] Product proxy success: ${proxyResponse.status}`
-      );
-    }
 
     res.status(proxyResponse.status).json(proxyResponse.data);
   } catch (error: unknown) {
-    // Product Service 에러 상세 로깅
-    if (process.env.NODE_ENV === 'development') {
-      console.error(`❌ [API Gateway] Product Service 에러:`, error);
-      if (isAxiosError(error) && error.response) {
-        console.error(`❌ [API Gateway] 응답 상태: ${error.response.status}`);
-        console.error(`❌ [API Gateway] 응답 데이터:`, error.response.data);
-      }
-    }
-
     const response: ApiResponse = {
       success: false,
       data: null,
@@ -681,13 +807,50 @@ app.use(`${API_VERSION}/orders`, async (req: Request, res: Response) => {
 // ========================================
 // 에러 핸들링 미들웨어
 // ========================================
-app.use(notFoundHandler);
-app.use(errorHandler);
+
+// 404 handler
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    message: `경로를 찾을 수 없습니다: ${req.originalUrl}`,
+    error: { code: 'NOT_FOUND' },
+    timestamp: getCurrentTimestamp(),
+    requestId: req.headers['x-request-id'] as string || 'unknown'
+  });
+});
+
+// Global error handler
+app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error('API Gateway Error:', {
+    message: error.message,
+    stack: error.stack,
+    url: req.originalUrl,
+    method: req.method,
+    timestamp: getCurrentTimestamp()
+  });
+
+  res.status(500).json({
+    success: false,
+    message: 'Internal Server Error',
+    error: { code: 'INTERNAL_ERROR' },
+    timestamp: getCurrentTimestamp(),
+    requestId: req.headers['x-request-id'] as string || 'unknown'
+  });
+});
 
 // ========================================
 // 프로세스 에러 핸들링
 // ========================================
-handleProcessExit();
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
 
 // ========================================
 // 로깅

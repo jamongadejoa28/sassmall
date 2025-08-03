@@ -41,6 +41,8 @@ export interface CreateProductRequest {
   };
   tags?: string[];
   discountPercent?: number; // 할인율 (0-100)
+  imageUrls?: string[]; // 업로드된 이미지 URL 배열
+  thumbnailUrl?: string | undefined; // 썸네일 이미지 URL
   initialStock: {
     quantity: number;
     location: string;
@@ -176,7 +178,9 @@ export interface UpdateProductRequest {
   name?: string;
   description?: string;
   price?: number;
+  categoryId?: string;
   brand?: string;
+  sku?: string;
   weight?: number;
   dimensions?: {
     width: number;
@@ -184,7 +188,13 @@ export interface UpdateProductRequest {
     depth: number;
   };
   tags?: string[];
-  discountPrice?: number;
+  discountPercent?: number;
+  imageUrls?: string[] | undefined;
+  thumbnailUrl?: string | undefined;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
+  isActive?: boolean;
+  images?: string[];
 }
 
 export interface UpdateProductResponse {

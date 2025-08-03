@@ -9,11 +9,13 @@ import { ProductController } from "../controllers/ProductController";
 import { loggingMiddleware, requestIdMiddleware } from "../middlewares/common";
 import {
   validateCreateProduct,
+  validateUpdateProduct,
   validateGetProductDetail,
   validateGetProductList,
 } from "../middlewares/validation";
 import { requireAuth, optionalAuth, requireAdmin } from "../middlewares/authMiddleware";
 import { TYPES } from "../../infrastructure/di/types";
+import { uploadImages, uploadImagesOptional } from "../../infrastructure/upload/multerConfig";
 
 /**
  * Product API Routes 설정
@@ -48,8 +50,8 @@ export function createProductRoutes(): Router {
   /**
    * POST /api/v1/products - 상품 생성
    *
-   * @description 새로운 상품과 초기 재고를 생성합니다
-   * @body CreateProductRequest
+   * @description 새로운 상품과 초기 재고를 생성합니다 (이미지 파일 업로드 포함)
+   * @body CreateProductRequest + multipart/form-data for images
    * @returns CreateProductResponse
    * @status 201 - 생성 성공
    * @status 400 - 잘못된 입력 데이터
@@ -58,7 +60,7 @@ export function createProductRoutes(): Router {
    */
   router.post(
     "/",
-    validateCreateProduct,
+    uploadImages, // Multer middleware for file uploads
     productController.createProduct.bind(productController)
   );
 
@@ -297,8 +299,8 @@ export function createProductRoutes(): Router {
     "/:id",
     requireAuth(), // 필수 인증
     requireAdmin(), // 관리자 권한 필요
-    validateGetProductDetail, // 상품 ID 검증 재사용
-    // TODO: 추후 validateUpdateProduct 미들웨어 추가
+    uploadImagesOptional, // 조건부 Multer middleware (multipart일 때만)
+    validateUpdateProduct, // 상품 수정 검증
     productController.updateProduct.bind(productController)
   );
 

@@ -98,6 +98,7 @@ export interface UpdateProductRequest {
   discountPercent?: number; // 할인율 (0-100)
   images?: File[]; // 상품 이미지 파일들
   thumbnailIndex?: number; // 썸네일로 사용할 이미지 인덱스
+  stockQuantity?: number; // 재고 수량
 }
 
 export interface CreateProductResponse {
@@ -310,38 +311,26 @@ export class ProductApiAdapter {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    // 이미지 파일이 있는 경우 FormData 사용, 없으면 JSON 사용
-    let body: FormData | string;
+    // 항상 FormData 사용 (이미지가 없어도)
+    const formData = new FormData();
 
-    if (productData.images && productData.images.length > 0) {
-      // FormData를 사용한 멀티파트 업로드
-      const formData = new FormData();
+    // 기본 상품 데이터 추가
+    const { images, thumbnailIndex, ...basicData } = productData;
+    formData.append('productData', JSON.stringify(basicData));
 
-      // 기본 상품 데이터 추가
-      const { images, thumbnailIndex, ...basicData } = productData;
-      formData.append('productData', JSON.stringify(basicData));
-
-      // 이미지 파일들 추가
+    // 이미지 파일들 추가 (있는 경우에만)
+    if (images && images.length > 0) {
       images.forEach((file, _index) => {
         formData.append('images', file);
       });
-
-      // 썸네일 인덱스 추가 (있는 경우)
-      if (thumbnailIndex !== undefined) {
-        formData.append('thumbnailIndex', thumbnailIndex.toString());
-      }
-
-      body = formData;
-    } else {
-      // JSON 데이터만 전송
-      headers['Content-Type'] = 'application/json';
-      const {
-        images: _images,
-        thumbnailIndex: _thumbnailIndex,
-        ...jsonData
-      } = productData;
-      body = JSON.stringify(jsonData);
     }
+
+    // 썸네일 인덱스 추가 (있는 경우)
+    if (thumbnailIndex !== undefined) {
+      formData.append('thumbnailIndex', thumbnailIndex.toString());
+    }
+
+    const body = formData;
 
     const response = await fetch(`${this.baseURL}/products`, {
       method: 'POST',
@@ -370,38 +359,34 @@ export class ProductApiAdapter {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    // 이미지 파일이 있는 경우 FormData 사용, 없으면 JSON 사용
-    let body: FormData | string;
+    // 디버깅 로그 추가
+    console.log('[ProductApiAdapter] updateProduct 요청 데이터:', {
+      productId,
+      hasImages: !!(productData.images && productData.images.length > 0),
+      stockQuantity: productData.stockQuantity,
+      productDataKeys: Object.keys(productData),
+    });
 
-    if (productData.images && productData.images.length > 0) {
-      // FormData를 사용한 멀티파트 업로드
-      const formData = new FormData();
+    // 항상 FormData 사용 (이미지가 없어도)
+    const formData = new FormData();
 
-      // 기본 상품 데이터 추가
-      const { images, thumbnailIndex, ...basicData } = productData;
-      formData.append('productData', JSON.stringify(basicData));
+    // 기본 상품 데이터 추가
+    const { images, thumbnailIndex, ...basicData } = productData;
+    formData.append('productData', JSON.stringify(basicData));
 
-      // 이미지 파일들 추가
+    // 이미지 파일들 추가 (있는 경우에만)
+    if (images && images.length > 0) {
       images.forEach((file, _index) => {
         formData.append('images', file);
       });
-
-      // 썸네일 인덱스 추가 (있는 경우)
-      if (thumbnailIndex !== undefined) {
-        formData.append('thumbnailIndex', thumbnailIndex.toString());
-      }
-
-      body = formData;
-    } else {
-      // JSON 데이터만 전송
-      headers['Content-Type'] = 'application/json';
-      const {
-        images: _images,
-        thumbnailIndex: _thumbnailIndex,
-        ...jsonData
-      } = productData;
-      body = JSON.stringify(jsonData);
     }
+
+    // 썸네일 인덱스 추가 (있는 경우)
+    if (thumbnailIndex !== undefined) {
+      formData.append('thumbnailIndex', thumbnailIndex.toString());
+    }
+
+    const body = formData;
 
     const response = await fetch(`${this.baseURL}/products/${productId}`, {
       method: 'PUT',

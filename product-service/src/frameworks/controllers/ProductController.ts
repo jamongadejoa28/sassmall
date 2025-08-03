@@ -12,11 +12,11 @@ import {
   GetProductListUseCase,
   GetProductListRequest,
 } from "../../usecases/GetProductListUseCase"; // [수정] GetProductListRequest도 가져옵니다.
-import { UpdateProductUseCase, UpdateProductRequest } from "../../usecases/UpdateProductUseCase";
+import { UpdateProductUseCase } from "../../usecases/UpdateProductUseCase";
 import { DeleteProductUseCase, DeleteProductRequest } from "../../usecases/DeleteProductUseCase";
 import { ToggleProductStatusUseCase, ToggleProductStatusRequest } from "../../usecases/ToggleProductStatusUseCase";
 import { GetProductStatsUseCase, GetProductStatsRequest } from "../../usecases/GetProductStatsUseCase";
-import { CreateProductRequest } from "../../usecases/types";
+import { CreateProductRequest, UpdateProductRequest } from "../../usecases/types";
 import { DomainError } from "../../shared/errors/DomainError";
 import { validationResult } from "express-validator";
 
@@ -483,38 +483,69 @@ export class ProductController {
    */
   async createProduct(req: Request, res: Response): Promise<void> {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        const response: ApiResponse<null> = {
-          success: false,
-          message: "입력 데이터가 올바르지 않습니다",
-          errors: errors.array().map((err) => ({
-            field: err.type === "field" ? err.path : "unknown",
-            message: err.msg,
-          })),
-          data: null,
-          timestamp: new Date().toISOString(),
-          requestId: (req.headers["x-request-id"] as string) || "unknown",
-        };
-        res.status(400).json(response);
-        return;
+      const { generateImageUrls, generateThumbnailUrl } = await import("../../infrastructure/upload/imageUtils");
+
+      // Parse productData from form-data if it exists
+      let productData: any = {};
+      if (req.body.productData) {
+        try {
+          productData = JSON.parse(req.body.productData);
+        } catch (parseError) {
+          const response: ApiResponse<null> = {
+            success: false,
+            message: "상품 데이터 파싱 오류",
+            data: null,
+            timestamp: new Date().toISOString(),
+            requestId: (req.headers["x-request-id"] as string) || "unknown",
+          };
+          res.status(400).json(response);
+          return;
+        }
+      } else {
+        productData = req.body;
+      }
+
+      // Debug received data temporarily
+      console.log('[DEBUG] Request details:', {
+        contentType: req.get('Content-Type'),
+        hasBody: !!req.body,
+        bodyKeys: Object.keys(req.body || {}),
+        hasProductData: !!req.body.productData,
+        hasFiles: !!(req.files && (req.files as any[]).length > 0),
+        fileCount: req.files ? (req.files as any[]).length : 0
+      });
+      console.log('[DEBUG] productData keys:', Object.keys(productData));
+      console.log('[DEBUG] productData values:', JSON.stringify(productData, null, 2));
+
+      // Handle uploaded images
+      const files = req.files as Express.Multer.File[];
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      let imageUrls: string[] = [];
+      let thumbnailUrl: string | undefined;
+
+      if (files && files.length > 0) {
+        imageUrls = generateImageUrls(files, baseUrl);
+        const thumbnailIndex = parseInt(req.body.thumbnailIndex) || 0;
+        thumbnailUrl = generateThumbnailUrl(imageUrls, thumbnailIndex);
       }
 
       const createRequest: CreateProductRequest = {
-        name: req.body.name,
-        description: req.body.description,
-        price: req.body.price,
-        categoryId: req.body.categoryId,
-        brand: req.body.brand,
-        sku: req.body.sku,
-        weight: req.body.weight,
-        dimensions: req.body.dimensions,
-        tags: req.body.tags || [],
-        discountPercent: req.body.discountPercent, // 할인율 필드 추가
+        name: productData.name,
+        description: productData.description,
+        price: productData.price,
+        categoryId: productData.categoryId,
+        brand: productData.brand,
+        sku: productData.sku,
+        weight: productData.weight,
+        dimensions: productData.dimensions,
+        tags: productData.tags || [],
+        discountPercent: productData.discountPercent,
+        imageUrls,
+        thumbnailUrl,
         initialStock: {
-          quantity: req.body.initialStock.quantity,
-          location: req.body.initialStock.location || "MAIN_WAREHOUSE",
-          lowStockThreshold: req.body.initialStock.lowStockThreshold || 10,
+          quantity: productData.initialStock?.quantity,
+          location: productData.initialStock?.location || "MAIN_WAREHOUSE",
+          lowStockThreshold: productData.initialStock?.lowStockThreshold || 10,
         },
       };
 
@@ -1844,15 +1875,107 @@ export class ProductController {
     const requestId = (req.headers["x-request-id"] as string) || "unknown";
 
     try {
-      console.log("[ProductController] 상품 수정 요청:", {
+      // 디버깅 로그 추가
+      console.log('[ProductController] updateProduct 시작:', {
         productId: req.params.id,
-        requestId,
-        timestamp: new Date().toISOString(),
+        contentType: req.get('Content-Type'),
+        hasFiles: !!(req.files && (req.files as any[]).length > 0),
+        bodyKeys: Object.keys(req.body || {}),
+        bodyData: req.body,
+        requestId
       });
+      const { generateImageUrls, generateThumbnailUrl, deleteImageFiles } = await import("../../infrastructure/upload/imageUtils");
+
+      // 기존 상품 정보 조회 (이미지 삭제를 위해)
+      let existingProduct = null;
+      try {
+        const existingResult = await this.getProductDetailUseCase.execute(req.params.id as string);
+        if (existingResult.success && existingResult.data) {
+          existingProduct = existingResult.data;
+          console.log('[ProductController] 기존 상품 정보 조회 성공:', {
+            productId: existingProduct.id,
+            hasImages: !!(existingProduct.image_urls && existingProduct.image_urls.length > 0),
+            imageCount: existingProduct.image_urls?.length || 0
+          });
+        } else {
+          console.log('[ProductController] 기존 상품 정보 조회 실패:', existingResult);
+        }
+      } catch (error) {
+        console.error('[ProductController] 기존 상품 정보 조회 에러:', error);
+        // 상품이 존재하지 않는 경우는 나중에 UseCase에서 처리
+      }
+
+      // Parse productData from form-data if it exists
+      let productData: any = {};
+      if (req.body.productData) {
+        try {
+          productData = JSON.parse(req.body.productData);
+        } catch (parseError) {
+          const response: ApiResponse<null> = {
+            success: false,
+            message: "상품 데이터 파싱 오류",
+            data: null,
+            timestamp: new Date().toISOString(),
+            requestId,
+          };
+          res.status(400).json(response);
+          return;
+        }
+      } else {
+        // If no productData in form, use req.body directly (JSON request)
+        productData = req.body;
+      }
+
+      // Handle uploaded images
+      const files = req.files as Express.Multer.File[];
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      let imageUrls: string[] = [];
+      let thumbnailUrl: string | undefined;
+
+      console.log('[ProductController] 이미지 처리 상황:', {
+        hasFiles: !!(files && files.length > 0),
+        fileCount: files?.length || 0,
+        hasExistingProduct: !!existingProduct,
+        existingImageCount: existingProduct?.image_urls?.length || 0
+      });
+
+      if (files && files.length > 0) {
+        // 새로운 이미지가 업로드된 경우, 기존 이미지 파일들 삭제
+        if (existingProduct && existingProduct.image_urls && existingProduct.image_urls.length > 0) {
+          try {
+            deleteImageFiles(existingProduct.image_urls);
+          } catch (deleteError) {
+            console.error('기존 이미지 삭제 실패:', deleteError);
+            // 삭제 실패해도 업데이트는 계속 진행
+          }
+        }
+
+        imageUrls = generateImageUrls(files, baseUrl);
+        const thumbnailIndex = parseInt(req.body.thumbnailIndex) || 0;
+        thumbnailUrl = generateThumbnailUrl(imageUrls, thumbnailIndex);
+      } else if (existingProduct) {
+        // 새로운 이미지가 없으면 기존 이미지 유지
+        imageUrls = existingProduct.image_urls || [];
+        thumbnailUrl = existingProduct.thumbnail_url;
+        console.log('[ProductController] 기존 이미지 유지:', {
+          imageUrls: imageUrls.length,
+          thumbnailUrl: !!thumbnailUrl
+        });
+      } else {
+        // 기존 상품이 없는 경우 (에러 상황)
+        console.log('[ProductController] 기존 상품 정보 없음 - 빈 이미지로 설정');
+        imageUrls = [];
+        thumbnailUrl = undefined;
+      }
 
       // 입력 검증
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.error('[ProductController] Validation 에러:', {
+          errors: errors.array(),
+          productData,
+          requestId
+        });
         const response: ApiResponse<null> = {
           success: false,
           message: "입력 데이터가 올바르지 않습니다",
@@ -1868,20 +1991,34 @@ export class ProductController {
       // 요청 데이터 구성
       const updateRequest: UpdateProductRequest = {
         productId: req.params.id as string,
-        name: req.body.name,
-        description: req.body.description,
-        price: req.body.price,
-        discountPercent: req.body.discountPercent,
-        sku: req.body.sku,
-        brand: req.body.brand,
-        categoryId: req.body.categoryId,
-        tags: req.body.tags,
-        isActive: req.body.isActive,
-        stockQuantity: req.body.stockQuantity,
-        lowStockThreshold: req.body.lowStockThreshold,
-        dimensions: req.body.dimensions,
-        images: req.body.images,
+        name: productData.name,
+        description: productData.description,
+        price: productData.price,
+        discountPercent: productData.discountPercent,
+        sku: productData.sku,
+        brand: productData.brand,
+        categoryId: productData.categoryId,
+        tags: productData.tags,
+        isActive: productData.isActive,
+        stockQuantity: productData.stockQuantity,
+        lowStockThreshold: productData.lowStockThreshold,
+        dimensions: productData.dimensions,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        thumbnailUrl: thumbnailUrl,
       };
+
+      console.log('[ProductController] UseCase 실행 요청:', {
+        productId: updateRequest.productId,
+        hasName: updateRequest.name !== undefined,
+        hasDescription: updateRequest.description !== undefined,
+        hasPrice: updateRequest.price !== undefined,
+        hasStockQuantity: updateRequest.stockQuantity !== undefined,
+        stockQuantityValue: updateRequest.stockQuantity,
+        hasIsActive: updateRequest.isActive !== undefined,
+        isActiveValue: updateRequest.isActive,
+        requestId,
+        updateRequestKeys: Object.keys(updateRequest).filter(key => (updateRequest as any)[key] !== undefined)
+      });
 
       // UseCase 실행
       const result = await this.updateProductUseCase.execute(updateRequest);

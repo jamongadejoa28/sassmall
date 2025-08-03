@@ -50,5 +50,6 @@ coverage/
 .svelte-kit/
 package-lock.json
 .jest-cache*
-
+*.jpg
+*.png
 docs/

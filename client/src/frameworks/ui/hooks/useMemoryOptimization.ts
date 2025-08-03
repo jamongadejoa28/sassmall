@@ -62,11 +62,39 @@ class MemoryManager {
     return memory ? memory.usedJSHeapSize : 0;
   }
 
-  // 메모리 모니터링 시작
+  // 메모리 모니터링 시작 - 적응형 모니터링으로 최적화
   private startMemoryMonitoring(): void {
-    this.memoryCheckTimer = setInterval(() => {
+    let checkInterval = 60000; // 기본 1분
+    let consecutiveNormalChecks = 0;
+
+    const adaptiveMemoryCheck = () => {
       this.checkMemoryUsage();
-    }, 30000); // 30초마다 체크
+
+      const memoryUsage = this.getCurrentMemoryUsage();
+
+      if (memoryUsage > MEMORY_CRITICAL_THRESHOLD) {
+        checkInterval = 10000; // 임계치 초과시 10초
+        consecutiveNormalChecks = 0;
+      } else if (memoryUsage > MEMORY_WARNING_THRESHOLD) {
+        checkInterval = 30000; // 경고시 30초
+        consecutiveNormalChecks = 0;
+      } else {
+        consecutiveNormalChecks++;
+        // 연속으로 정상이면 간격을 늘림 (최대 5분)
+        if (consecutiveNormalChecks > 3) {
+          checkInterval = Math.min(300000, checkInterval * 1.5);
+        }
+      }
+
+      // 다음 체크 스케줄링
+      if (this.memoryCheckTimer) {
+        clearTimeout(this.memoryCheckTimer);
+      }
+      this.memoryCheckTimer = setTimeout(adaptiveMemoryCheck, checkInterval);
+    };
+
+    // 초기 체크 시작
+    adaptiveMemoryCheck();
   }
 
   // 메모리 사용량 체크 및 경고
@@ -110,7 +138,7 @@ class MemoryManager {
     if (this.isCleanupRunning) return;
 
     this.isCleanupRunning = true;
-    const startTime = performance.now();
+
     const priorityOrder = { low: 0, medium: 1, high: 2, critical: 3 };
     const minPriorityLevel = priorityOrder[minPriority];
 
@@ -126,7 +154,6 @@ class MemoryManager {
           return a.lastAccessed - b.lastAccessed;
         });
 
-      let _cleanedCount = 0;
       const maxCleanupCount = Math.min(
         targetsToClean.length,
         minPriority === 'critical' ? Infinity : 10
@@ -136,13 +163,10 @@ class MemoryManager {
         try {
           target.cleanup();
           this.cleanupTargets.delete(target.id);
-          _cleanedCount++;
         } catch (error) {
           console.error(`정리 작업 실패 (${target.id}):`, error);
         }
       }
-
-      const _duration = performance.now() - startTime;
     } finally {
       this.isCleanupRunning = false;
     }
@@ -267,8 +291,12 @@ export function useMemoryOptimization(
     return () => clearInterval(interval);
   }, [enableAutoCleanup, cleanupInterval, maxInactiveTime, memoryManager]);
 
-  // 메모리 모니터링
+  // 메모리 모니터링 - 전역 관리자에 위임하여 중복 제거
   useEffect(() => {
+    if (!onMemoryWarning && !onMemoryCritical) {
+      return; // 콜백이 없으면 개별 모니터링 안함
+    }
+
     const checkMemory = () => {
       const memory = measureMemoryUsage();
       if (!memory) return;
@@ -282,7 +310,11 @@ export function useMemoryOptimization(
       }
     };
 
-    const interval = setInterval(checkMemory, memoryCheckInterval);
+    // 전역 관리자가 있으므로 개별 컴포넌트에서는 더 긴 간격으로 체크
+    const interval = setInterval(
+      checkMemory,
+      Math.max(memoryCheckInterval * 2, 120000)
+    ); // 최소 2분
     return () => clearInterval(interval);
   }, [
     memoryCheckInterval,

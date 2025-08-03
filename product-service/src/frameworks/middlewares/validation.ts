@@ -90,15 +90,38 @@ export const validateCreateProduct = [
     .withMessage("각 태그는 1자 이상 50자 이하여야 합니다")
     .trim(),
 
+  // 할인율 검증 (선택적)
+  body("discountPercent")
+    .optional()
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // 빈 값은 허용
+      }
+      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+      if (isNaN(numValue) || numValue < 0 || numValue > 100) {
+        throw new Error('할인율은 0부터 100 사이의 값이어야 합니다');
+      }
+      return true;
+    }),
+
   // 초기 재고 정보 검증
   body("initialStock")
+    .optional()
     .isObject()
     .withMessage("초기 재고 정보는 객체여야 합니다"),
 
   body("initialStock.quantity")
-    .isInt({ min: 0 })
-    .withMessage("재고 수량은 0 이상의 정수여야 합니다")
-    .toInt(),
+    .optional()
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // 빈 값은 허용 (기본값 0으로 처리)
+      }
+      const numValue = typeof value === 'string' ? parseInt(value) : value;
+      if (isNaN(numValue) || numValue < 0) {
+        throw new Error('재고 수량은 0 이상의 정수여야 합니다');
+      }
+      return true;
+    }),
 
   body("initialStock.location")
     .optional()
@@ -353,4 +376,143 @@ export const validateUpdateCategory = [
     .isBoolean()
     .withMessage("활성화 상태는 boolean 값이어야 합니다")
     .toBoolean(),
+];
+
+/**
+ * 상품 수정 API 검증 규칙
+ * PUT /api/v1/products/:id
+ */
+export const validateUpdateProduct = [
+  // 상품 ID 검증 (URL 파라미터)
+  param("id").isUUID().withMessage("상품 ID는 유효한 UUID여야 합니다"),
+
+  // 모든 필드는 선택적(optional)이며, 제공된 경우에만 검증
+  body("name")
+    .optional()
+    .isString()
+    .withMessage("상품명은 문자열이어야 합니다")
+    .isLength({ min: 1, max: 200 })
+    .withMessage("상품명은 1자 이상 200자 이하여야 합니다")
+    .trim(),
+
+  body("description")
+    .optional()
+    .isString()
+    .withMessage("상품 설명은 문자열이어야 합니다")
+    .isLength({ max: 2000 })
+    .withMessage("상품 설명은 2000자 이하여야 합니다")
+    .trim(),
+
+  body("price")
+    .optional()
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // 빈 값은 허용 (변경하지 않음)
+      }
+      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+      if (isNaN(numValue) || numValue < 0) {
+        throw new Error('가격은 0 이상의 숫자여야 합니다');
+      }
+      return true;
+    }),
+
+  body("discountPercent")
+    .optional()
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // 빈 값은 허용
+      }
+      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+      if (isNaN(numValue) || numValue < 0 || numValue > 100) {
+        throw new Error('할인율은 0부터 100 사이의 값이어야 합니다');
+      }
+      return true;
+    }),
+
+  body("categoryId")
+    .optional()
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // 빈 값은 허용
+      }
+      // UUID 형식 검증
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+      if (!uuidRegex.test(value)) {
+        throw new Error('카테고리 ID는 유효한 UUID여야 합니다');
+      }
+      return true;
+    }),
+
+  body("brand")
+    .optional()
+    .isString()
+    .withMessage("브랜드는 문자열이어야 합니다")
+    .isLength({ min: 1, max: 100 })
+    .withMessage("브랜드는 1자 이상 100자 이하여야 합니다")
+    .trim(),
+
+  body("sku")
+    .optional()
+    .isString()
+    .withMessage("SKU는 문자열이어야 합니다")
+    .isLength({ min: 1, max: 50 })
+    .withMessage("SKU는 1자 이상 50자 이하여야 합니다")
+    .trim(),
+
+  body("stockQuantity")
+    .optional()
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // 빈 값은 허용
+      }
+      const numValue = typeof value === 'string' ? parseInt(value) : value;
+      if (isNaN(numValue) || numValue < 0) {
+        throw new Error('재고 수량은 0 이상의 정수여야 합니다');
+      }
+      return true;
+    }),
+
+  body("lowStockThreshold")
+    .optional()
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // 빈 값은 허용
+      }
+      const numValue = typeof value === 'string' ? parseInt(value) : value;
+      if (isNaN(numValue) || numValue < 0) {
+        throw new Error('최소 재고 임계값은 0 이상의 정수여야 합니다');
+      }
+      return true;
+    }),
+
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("활성화 상태는 boolean 값이어야 합니다")
+    .toBoolean(),
+
+  body("weight")
+    .optional()
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // 빈 값은 허용
+      }
+      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+      if (isNaN(numValue) || numValue < 0) {
+        throw new Error('무게는 0 이상의 숫자여야 합니다');
+      }
+      return true;
+    }),
+
+  body("tags")
+    .optional()
+    .isArray()
+    .withMessage("태그는 배열이어야 합니다"),
+
+  body("tags.*")
+    .optional()
+    .isString()
+    .withMessage("각 태그는 문자열이어야 합니다")
+    .isLength({ min: 1, max: 50 })
+    .withMessage("각 태그는 1자 이상 50자 이하여야 합니다"),
 ];

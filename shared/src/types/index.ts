@@ -158,20 +158,6 @@ export interface PaginatedResponse<T> {
 // ========================================
 // 환경설정 타입
 // ========================================
-export interface DatabaseConfig {
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  database: string;
-}
-
-export interface RedisConfig {
-  host: string;
-  port: number;
-  password?: string;
-}
-
 export interface JwtConfig {
   secret: string;
   refreshSecret: string;

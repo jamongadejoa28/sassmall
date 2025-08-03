@@ -32,7 +32,7 @@ interface ProductData {
 export const useProductImage = (product: ProductData): string => {
   return useMemo(() => {
     return imageService.getProductImageUrl(product);
-  }, [product]); // 'product' 객체 전체를 의존성으로 추가하여 경고를 해결합니다.
+  }, [product]);
 };
 
 /**

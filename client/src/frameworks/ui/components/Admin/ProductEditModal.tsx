@@ -42,6 +42,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     discountPercent: undefined,
     images: [],
     thumbnailIndex: 0,
+    stockQuantity: 0,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -55,7 +56,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       setFormData({
         name: product.name,
         description: product.description,
-        price: product.original_price || product.price, // 원가 표시 (original_price가 없으면 price 사용)
+        price: product.original_price || product.price,
         categoryId: product.category.id,
         brand: product.brand,
         sku: product.sku,
@@ -65,6 +66,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         discountPercent: product.discount_percent,
         images: [],
         thumbnailIndex: 0,
+        stockQuantity: undefined,
       });
 
       // 기존 이미지 URL 설정
@@ -295,6 +297,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
+    // 재고 수량 검사 (undefined는 허용 - 변경하지 않음을 의미, 빈 문자열도 허용)
+    if (
+      formData.stockQuantity !== undefined &&
+      formData.stockQuantity !== null &&
+      typeof formData.stockQuantity === 'number' &&
+      formData.stockQuantity < 0
+    ) {
+      newErrors.stockQuantity = '재고 수량은 0 이상이어야 합니다.';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [formData]);
@@ -309,7 +321,29 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
 
       try {
-        await onSubmit(product.id, formData);
+        // 제출 전 데이터 정규화 (빈 값들은 기존 데이터로 유지)
+        const normalizedFormData = {
+          ...formData,
+          // 이미지는 새로 추가된 것만 전송 (기존 이미지는 별도 처리)
+          images: formData.images || [],
+          // 재고수량이 undefined면 제외 (백엔드에서 기존값 유지)
+          ...(formData.stockQuantity !== undefined && {
+            stockQuantity: formData.stockQuantity,
+          }),
+          // 할인율이 빈 값이면 기존 값 유지
+          discountPercent:
+            formData.discountPercent === undefined ||
+            formData.discountPercent === null
+              ? product.discount_percent
+              : formData.discountPercent,
+          // 중량이 빈 값이면 기존 값 유지
+          weight:
+            formData.weight === undefined || formData.weight === null
+              ? product.weight
+              : formData.weight,
+        };
+
+        await onSubmit(product.id, normalizedFormData);
         onClose();
       } catch (error) {
         // 에러는 상위 컴포넌트에서 처리
@@ -769,6 +803,51 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     {errors.dimensions}
                   </p>
                 )}
+              </div>
+
+              {/* 재고 관리 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  재고 관리
+                </label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    재고 수량
+                  </label>
+                  <input
+                    type="number"
+                    value={
+                      formData.stockQuantity === undefined
+                        ? ''
+                        : formData.stockQuantity
+                    }
+                    onChange={e => {
+                      const value = e.target.value;
+                      if (value === '') {
+                        updateFormData('stockQuantity', undefined);
+                      } else {
+                        const numValue = parseInt(value, 10);
+                        updateFormData(
+                          'stockQuantity',
+                          isNaN(numValue) ? undefined : numValue
+                        );
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                      errors.stockQuantity
+                        ? 'border-red-500'
+                        : 'border-gray-300'
+                    }`}
+                    placeholder="재고 수량 (빈값 시 기존값 유지)"
+                    min="0"
+                    step="1"
+                  />
+                  {errors.stockQuantity && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.stockQuantity}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* 태그 */}

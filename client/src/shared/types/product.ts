@@ -3,9 +3,10 @@ export interface Product {
   name: string;
   description: string;
   price: number;
-  discountPrice?: number; // 할인된 가격
-  discountPercentage: number; // 할인율 (0-100)
-  original_price?: number;
+  originalPrice: number; // 원가 (항상 포함)
+  discountPercentage: number; // 할인율 (항상 포함, 0일 수 있음)
+  discountPrice?: number; // 할인된 가격 - 호환성을 위해 유지
+  original_price?: number; // 기존 호환성을 위해 유지
   discount_percent?: number; // 할인율 (0-100) - 기존 호환성
   brand: string;
   sku: string;
@@ -30,6 +31,7 @@ export interface Product {
     available_quantity: number;
     inventory_status: string;
     location: string;
+    low_stock_threshold?: number;
   };
   createdAt: string;
   updatedAt: string;

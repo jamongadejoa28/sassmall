@@ -4,7 +4,7 @@
 // ========================================
 
 import { useEffect, useState } from 'react';
-import { cartSessionManager } from '../adapters/storage/CartSessionManager';
+import { cartSessionManager } from '../utils/cartSessionManager';
 
 interface UseCartSessionReturn {
   sessionId: string | null;
@@ -38,7 +38,7 @@ export const useCartSession = (): UseCartSessionReturn => {
     // 상태 업데이트 함수
     const updateSessionState = () => {
       const remaining = cartSessionManager.getRemainingTime();
-      const active = !cartSessionManager.isSessionExpired();
+      const active = cartSessionManager.isSessionActive();
 
       setRemainingTime(remaining);
       setIsActive(active);
@@ -62,28 +62,71 @@ export const useCartSession = (): UseCartSessionReturn => {
     // 초기 상태 업데이트
     updateSessionState();
 
-    // 30초마다 상태 업데이트 (성능 최적화)
-    const interval = setInterval(updateSessionState, 30000);
-
-    // 세션 만료 이벤트 리스너
+    // 이벤트 기반 상태 업데이트 (폴링 제거)
     const handleSessionExpired = () => {
+      updateSessionState();
+    };
+
+    const handleSessionUpdate = () => {
       updateSessionState();
     };
 
     // 스토리지 변경 이벤트 리스너 (다른 탭에서 로그인/로그아웃 시)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'auth-storage') {
+      // 같은 탭에서 발생한 storage 이벤트는 무시 (cross-tab 동기화만 처리)
+      if (e.storageArea === localStorage && e.key === 'auth-storage') {
         updateSessionState();
+      }
+      // cart_session은 대부분 같은 탭에서 발생하므로 무시
+    };
+
+    // 사용자 활동 기반 상태 업데이트 (쓰로틀링 적용)
+    let lastActivityTime = 0;
+    const ACTIVITY_THROTTLE_MS = 5000; // 5초마다 한 번만 실행
+
+    const handleUserActivity = (event: Event) => {
+      // 시스템 키 조합 제외 (Alt+Tab, Ctrl+C 등)
+      if (event instanceof KeyboardEvent) {
+        if (event.altKey || event.ctrlKey || event.metaKey) {
+          return; // 시스템 키 조합은 무시
+        }
+      }
+
+      const now = Date.now();
+      if (now - lastActivityTime < ACTIVITY_THROTTLE_MS) {
+        return; // 쓰로틀링: 너무 자주 호출되지 않도록 제한
+      }
+      lastActivityTime = now;
+
+      // 키보드 활동은 localStorage 업데이트 없이 메모리에만 기록
+      if (cartSessionManager.isSessionActive()) {
+        // recordActivity 대신 단순히 활동 시간만 메모리에 기록
+        // localStorage 업데이트는 하지 않음으로써 storage 이벤트 방지
       }
     };
 
+    // 이벤트 리스너 등록
     window.addEventListener('cartSessionExpired', handleSessionExpired);
+    window.addEventListener('cartSessionUpdate', handleSessionUpdate);
     window.addEventListener('storage', handleStorageChange);
 
+    // 사용자 활동 감지 (필요시에만)
+    const activityEvents = ['mousedown', 'keydown', 'touchstart'] as const;
+    activityEvents.forEach(eventType => {
+      document.addEventListener(eventType, handleUserActivity, {
+        passive: true,
+        once: false,
+      });
+    });
+
     return () => {
-      clearInterval(interval);
       window.removeEventListener('cartSessionExpired', handleSessionExpired);
+      window.removeEventListener('cartSessionUpdate', handleSessionUpdate);
       window.removeEventListener('storage', handleStorageChange);
+
+      activityEvents.forEach(eventType => {
+        document.removeEventListener(eventType, handleUserActivity);
+      });
     };
   }, []);
 
@@ -92,7 +135,7 @@ export const useCartSession = (): UseCartSessionReturn => {
 
     // 즉시 상태 업데이트
     const remaining = cartSessionManager.getRemainingTime();
-    const active = !cartSessionManager.isSessionExpired();
+    const active = cartSessionManager.isSessionActive();
     setRemainingTime(remaining);
     setIsActive(active);
   };

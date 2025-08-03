@@ -99,15 +99,14 @@ class ProductServiceApp {
       })
     );
 
-    // CORS 설정
+    // CORS 설정 - 더 관대한 설정
     this.app.use(
       cors({
-        origin: process.env.CORS_ORIGIN?.split(",") || [
-          "http://localhost:3000",
-        ],
-        credentials: true,
-        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-        allowedHeaders: ["Content-Type", "Authorization"],
+        origin: "*", // 개발 환경에서는 모든 origin 허용
+        credentials: false, // 모든 origin 허용시 credentials는 false
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+        optionsSuccessStatus: 200,
       })
     );
 
@@ -139,6 +138,15 @@ class ProductServiceApp {
         limit: process.env.MAX_FILE_SIZE || "10mb",
       })
     );
+
+    // Static file serving for uploaded images
+    // 정적 파일 서빙 with CORS headers
+    this.app.use('/uploads', (req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET');
+      res.header('Access-Control-Allow-Headers', 'Content-Type');
+      next();
+    }, express.static('uploads'));
 
     // 요청 로깅 미들웨어는 common.ts의 loggingMiddleware에서 처리
   }

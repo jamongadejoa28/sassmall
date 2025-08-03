@@ -2,11 +2,54 @@
 // Shared Module Entry Point
 // ========================================
 
-// 타입 내보내기
-export * from './types';
+// 타입 내보내기 (중복 타입 제외)
+export {
+  ApiResponse,
+  HTTP_STATUS,
+  ErrorCode,
+  UserRole,
+  User,
+  TokenPair,
+  JwtPayload,
+  Product,
+  Category,
+  OrderStatus,
+  OrderItem,
+  Order,
+  Address,
+  PaginationParams,
+  PaginatedResponse,
+  JwtConfig
+} from './types';
+
+// 설정 타입을 명시적으로 내보내기
+export {
+  ServiceConfig,
+  DatabaseConfig,
+  RedisConfig,
+  AuthConfig,
+  SERVICE_REGISTRY,
+  getServiceConfig,
+  getServiceUrl,
+  getAllServiceUrls,
+  HealthCheckConfig,
+  DEFAULT_HEALTH_CHECK,
+  DATABASE_DEFAULTS,
+  REDIS_DEFAULTS,
+  RATE_LIMIT_CONFIG,
+  CORS_CONFIG
+} from './config/serviceConfig';
 
 // 유틸리티 내보내기
 export * from './utils';
+
+// 미들웨어 내보내기
+export * from './middleware/authMiddleware';
+export * from './middleware/errorHandler';
+export * from './utils/validation';
+
+// 부트스트랩 내보내기
+export * from './utils/serviceBootstrap';
 
 // ========================================
 // 버전 정보

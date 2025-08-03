@@ -14,13 +14,15 @@ export interface ProductDetailResponse {
   name: string;
   description: string;
   price: number; // 실제 판매가 (할인가)
-  originalPrice?: number; // 원가 (할인이 있는 경우에만)
-  discountPercentage?: number; // 할인율
+  originalPrice: number; // 원가 (항상 포함)
+  discountPercentage: number; // 할인율 (항상 포함, 0일 수 있음)
   sku: string;
   brand: string;
   tags: string[];
   isActive: boolean;
   slug: string;
+  image_urls?: string[]; // 상품 이미지 URL 배열
+  thumbnail_url?: string | undefined; // 대표 이미지 URL
   category: {
     id: string;
     name: string;
@@ -162,17 +164,21 @@ export class GetProductDetailUseCase {
       keywords: product.getTags(),
     };
 
-    // discountPrice 처리 - undefined인 경우 제외
+    // 응답 객체 생성 - 할인 정보는 항상 포함
     const response: ProductDetailResponse = {
       id: product.getId(),
       name: product.getName(),
       description: product.getDescription(),
       price: product.getPrice(),
+      originalPrice: product.getOriginalPrice(), // 항상 포함
+      discountPercentage: product.getDiscountPercentage(), // 항상 포함
       sku: product.getSku(),
       brand: product.getBrand(),
       tags: product.getTags(),
       isActive: product.isActive(),
       slug: product.generateSlug(),
+      image_urls: product.getImageUrls(),
+      thumbnail_url: product.getThumbnailUrl(),
       category: {
         id: category.getId(),
         name: category.getName(),
@@ -186,12 +192,13 @@ export class GetProductDetailUseCase {
       updatedAt: product.getUpdatedAt(),
     };
 
-    // 할인 로직: 할인이 있는 경우 originalPrice와 discountPercentage 필드 추가
-    if (product.hasDiscount()) {
-      response.originalPrice = product.getOriginalPrice(); // 원가
-      response.discountPercentage = product.getDiscountPercentage(); // 할인율
-      // response.price는 이미 할인된 가격 (DB에서 자동 계산됨)
-    }
+    console.log('[GetProductDetailUseCase] 상품 정보 응답:', {
+      productId: product.getId(),
+      originalPrice: response.originalPrice,
+      discountPercentage: response.discountPercentage,
+      finalPrice: response.price,
+      hasDiscount: product.hasDiscount()
+    });
 
     return response;
   }

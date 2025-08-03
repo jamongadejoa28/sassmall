@@ -115,8 +115,14 @@ class CartSessionManager {
   recordActivity(): void {
     const sessionData = this.getSessionData();
     if (sessionData) {
-      sessionData.lastActivity = Date.now();
-      localStorage.setItem(this.sessionKey, JSON.stringify(sessionData));
+      const currentTime = Date.now();
+      const timeSinceLastActivity = currentTime - sessionData.lastActivity;
+
+      // 5초 이내의 활동은 무시 (불필요한 localStorage 업데이트 방지)
+      if (timeSinceLastActivity > 5000) {
+        sessionData.lastActivity = currentTime;
+        localStorage.setItem(this.sessionKey, JSON.stringify(sessionData));
+      }
     }
   }
 
@@ -126,11 +132,11 @@ class CartSessionManager {
   updateLoginStatus(isLoggedIn: boolean): void {
     const sessionData = this.getSessionData();
     if (sessionData) {
-      // 상태가 실제로 변경되었을 때만 로그 출력
-      const _statusChanged = sessionData.isLoggedIn !== isLoggedIn;
-
-      sessionData.isLoggedIn = isLoggedIn;
-      localStorage.setItem(this.sessionKey, JSON.stringify(sessionData));
+      // 상태가 실제로 변경되었을 때만 업데이트
+      if (sessionData.isLoggedIn !== isLoggedIn) {
+        sessionData.isLoggedIn = isLoggedIn;
+        localStorage.setItem(this.sessionKey, JSON.stringify(sessionData));
+      }
     }
   }
 
@@ -181,12 +187,49 @@ class CartSessionManager {
   }
 
   /**
-   * 활동 모니터링 설정
+   * 활동 모니터링 설정 - 이벤트 기반으로 최적화
    */
   private setupActivityMonitoring(): void {
-    // 5분마다 세션 상태 확인
-    this.activityCheckInterval = setInterval(
-      () => {
+    // 세션 만료 확인을 위한 지연된 체크 (필요할 때만)
+    let sessionCheckTimeout: NodeJS.Timeout | null = null;
+
+    const scheduleSessionCheck = () => {
+      if (sessionCheckTimeout) {
+        clearTimeout(sessionCheckTimeout);
+      }
+
+      const sessionData = this.getSessionData();
+      if (!sessionData || sessionData.isLoggedIn) {
+        return; // 로그인 사용자는 체크하지 않음
+      }
+
+      const remainingTime = this.getRemainingTime() * 1000; // 밀리초로 변환
+      if (remainingTime > 0) {
+        // 만료 시점에 정확히 체크하도록 스케줄링
+        sessionCheckTimeout = setTimeout(() => {
+          const currentSessionData = this.getSessionData();
+          if (
+            currentSessionData &&
+            !currentSessionData.isLoggedIn &&
+            this.isSessionExpired(currentSessionData)
+          ) {
+            this.clearSession();
+            window.dispatchEvent(new CustomEvent('cartSessionExpired'));
+          }
+        }, remainingTime + 1000); // 1초 여유
+      }
+    };
+
+    // 페이지 언로드 시 정리
+    window.addEventListener('beforeunload', () => {
+      if (sessionCheckTimeout) {
+        clearTimeout(sessionCheckTimeout);
+      }
+    });
+
+    // 페이지 가시성 변경 시 체크 (탭 전환 시)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
         const sessionData = this.getSessionData();
         if (
           sessionData &&
@@ -194,32 +237,38 @@ class CartSessionManager {
           this.isSessionExpired(sessionData)
         ) {
           this.clearSession();
-
-          // 장바구니 만료 이벤트 발생
           window.dispatchEvent(new CustomEvent('cartSessionExpired'));
+        } else {
+          scheduleSessionCheck(); // 새로운 체크 스케줄링
         }
-      },
-      5 * 60 * 1000
-    ); // 5분
-
-    // 페이지 언로드 시 정리
-    window.addEventListener('beforeunload', () => {
-      if (this.activityCheckInterval) {
-        clearInterval(this.activityCheckInterval);
       }
     });
 
-    // 사용자 활동 감지 (마우스, 키보드, 터치)
-    const activityEvents = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    // 사용자 활동 감지 - throttled 방식으로 최적화
+    let lastActivityUpdate = 0;
+    const throttleInterval = 10000; // 10초 간격으로 throttle
+
+    const throttledRecordActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityUpdate >= throttleInterval) {
+        lastActivityUpdate = now;
+        this.recordActivity();
+        scheduleSessionCheck(); // 활동 시 새로운 체크 스케줄링
+
+        // 세션 업데이트 이벤트 발생
+        window.dispatchEvent(new CustomEvent('cartSessionUpdate'));
+      }
+    };
+
+    const activityEvents = ['mousedown', 'keydown', 'touchstart'] as const;
     activityEvents.forEach(eventType => {
-      document.addEventListener(
-        eventType,
-        () => {
-          this.recordActivity();
-        },
-        { passive: true }
-      );
+      document.addEventListener(eventType, throttledRecordActivity, {
+        passive: true,
+      });
     });
+
+    // 초기 세션 체크 스케줄링
+    scheduleSessionCheck();
   }
 
   /**

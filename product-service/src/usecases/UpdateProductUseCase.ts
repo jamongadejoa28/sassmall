@@ -5,33 +5,8 @@
 
 import { injectable, inject } from "inversify";
 import { TYPES } from "../infrastructure/di/types";
-import { ProductRepository, CategoryRepository, CacheService } from "./types";
+import { ProductRepository, CategoryRepository, InventoryRepository, CacheService, UpdateProductRequest } from "./types";
 import { Product } from "../entities/Product";
-
-/**
- * 상품 수정 요청 데이터
- */
-export interface UpdateProductRequest {
-  productId: string;
-  name?: string;
-  description?: string;
-  price?: string;
-  discountPercent?: number;
-  sku?: string;
-  brand?: string;
-  categoryId?: string;
-  tags?: string[];
-  isActive?: boolean;
-  stockQuantity?: number;
-  lowStockThreshold?: number;
-  dimensions?: {
-    weight?: number;
-    width?: number;
-    height?: number;
-    depth?: number;
-  };
-  images?: string[];
-}
 
 /**
  * 상품 수정 응답 데이터
@@ -57,6 +32,8 @@ export class UpdateProductUseCase {
     private productRepository: ProductRepository,
     @inject(TYPES.CategoryRepository)
     private categoryRepository: CategoryRepository,
+    @inject(TYPES.InventoryRepository)
+    private inventoryRepository: InventoryRepository,
     @inject(TYPES.CacheService)
     private readonly cacheService: CacheService
   ) {}
@@ -66,7 +43,12 @@ export class UpdateProductUseCase {
    */
   async execute(request: UpdateProductRequest): Promise<UpdateProductResponse> {
     try {
-      console.log('[UpdateProductUseCase] 상품 수정 시작:', request.productId);
+      console.log('[UpdateProductUseCase] 상품 수정 시작:', {
+        productId: request.productId,
+        stockQuantity: request.stockQuantity,
+        hasStockQuantity: request.stockQuantity !== undefined,
+        requestKeys: Object.keys(request)
+      });
 
       // 상품 ID 유효성 검증
       if (!request.productId || request.productId.trim() === '') {
@@ -106,19 +88,39 @@ export class UpdateProductUseCase {
       }
       if (request.price !== undefined) {
         // 프론트엔드에서 받은 price는 실제로는 originalPrice (원가)
-        updateData.originalPrice = parseFloat(request.price);
-        hasChanges = true;
+        if (typeof request.price === 'number' && request.price > 0) {
+          updateData.originalPrice = request.price;
+          hasChanges = true;
+        } else if (typeof request.price === 'string') {
+          // FormData에서 string으로 올 수 있음
+          const priceValue = parseFloat(request.price);
+          if (!isNaN(priceValue) && priceValue > 0) {
+            updateData.originalPrice = priceValue;
+            hasChanges = true;
+          } else {
+            throw new Error('가격은 유효한 양수여야 합니다');
+          }
+        } else {
+          throw new Error('가격은 유효한 양수여야 합니다');
+        }
       }
-      if (request.discountPercent !== undefined) {
-        updateData.discountPercentage = request.discountPercent;
-        hasChanges = true;
+      if (request.discountPercent !== undefined && request.discountPercent !== null) {
+        // 빈 문자열이나 유효하지 않은 값인 경우는 0으로 처리
+        const discountPercent = typeof request.discountPercent === 'string' 
+          ? parseFloat(request.discountPercent) 
+          : request.discountPercent;
+        
+        if (!isNaN(discountPercent) && discountPercent >= 0 && discountPercent <= 100) {
+          updateData.discountPercentage = discountPercent;
+          hasChanges = true;
+        }
       }
       if (request.brand !== undefined) {
         updateData.brand = request.brand.trim();
         hasChanges = true;
       }
-      if (request.dimensions?.weight !== undefined) {
-        updateData.weight = request.dimensions.weight;
+      if (request.weight !== undefined) {
+        updateData.weight = request.weight;
         hasChanges = true;
       }
       if (request.dimensions !== undefined) {
@@ -127,6 +129,14 @@ export class UpdateProductUseCase {
       }
       if (request.tags !== undefined) {
         updateData.tags = request.tags;
+        hasChanges = true;
+      }
+      if (request.imageUrls !== undefined) {
+        updateData.imageUrls = request.imageUrls;
+        hasChanges = true;
+      }
+      if (request.thumbnailUrl !== undefined) {
+        updateData.thumbnailUrl = request.thumbnailUrl;
         hasChanges = true;
       }
       
@@ -143,14 +153,26 @@ export class UpdateProductUseCase {
         }
       }
 
-      // 변경사항이 없으면 기존 상품 반환
-      if (!hasChanges && request.isActive === undefined) {
+      // 변경사항이 없으면 기존 상품 반환 (재고 수량 업데이트는 별도 처리)
+      if (!hasChanges && request.isActive === undefined && request.stockQuantity === undefined) {
         console.log('[UpdateProductUseCase] 변경사항이 없어 기존 상품 반환');
         return { product: existingProduct };
       }
 
       // Repository를 통해 상품 수정
       const updatedProduct = await this.productRepository.update(existingProduct);
+
+      // 재고 수량 업데이트 (stockQuantity가 제공되고 null이 아닌 경우)
+      if (request.stockQuantity !== undefined && request.stockQuantity !== null) {
+        // 빈 문자열이나 유효하지 않은 값인 경우는 업데이트하지 않음
+        const stockQuantity = typeof request.stockQuantity === 'string' 
+          ? parseInt(request.stockQuantity, 10) 
+          : request.stockQuantity;
+        
+        if (!isNaN(stockQuantity) && stockQuantity >= 0) {
+          await this.updateInventoryQuantity(request.productId, stockQuantity);
+        }
+      }
 
       // 캐시 무효화
       await this.invalidateRelatedCaches();
@@ -203,9 +225,17 @@ export class UpdateProductUseCase {
     }
 
     if (request.price !== undefined) {
-      const priceNum = parseFloat(request.price);
-      if (isNaN(priceNum) || priceNum < 0) {
-        throw new Error('가격은 0 이상의 숫자여야 합니다');
+      if (typeof request.price === 'number') {
+        if (request.price < 0) {
+          throw new Error('가격은 0 이상의 숫자여야 합니다');
+        }
+      } else if (typeof request.price === 'string') {
+        const priceNum = parseFloat(request.price);
+        if (isNaN(priceNum) || priceNum < 0) {
+          throw new Error('가격은 0 이상의 숫자여야 합니다');
+        }
+      } else {
+        throw new Error('가격은 숫자여야 합니다');
       }
     }
 
@@ -237,12 +267,12 @@ export class UpdateProductUseCase {
       throw new Error('최소 재고 임계값은 0 이상이어야 합니다');
     }
 
+    if (request.weight !== undefined && request.weight < 0) {
+      throw new Error('무게는 0 이상이어야 합니다');
+    }
+
     if (request.dimensions !== undefined) {
-      const { weight, width, height, depth } = request.dimensions;
-      
-      if (weight !== undefined && weight < 0) {
-        throw new Error('무게는 0 이상이어야 합니다');
-      }
+      const { width, height, depth } = request.dimensions;
       
       if (width !== undefined && width < 0) {
         throw new Error('가로는 0 이상이어야 합니다');
@@ -279,6 +309,47 @@ export class UpdateProductUseCase {
 
     if (!category.isActive()) {
       throw new Error('비활성화된 카테고리입니다');
+    }
+  }
+
+  /**
+   * 재고 수량 업데이트
+   */
+  private async updateInventoryQuantity(productId: string, newQuantity: number): Promise<void> {
+    try {
+      console.log('[UpdateProductUseCase] 재고 수량 업데이트 시작:', productId, newQuantity);
+
+      // 기존 재고 조회
+      const existingInventory = await this.inventoryRepository.findByProductId(productId);
+      if (!existingInventory) {
+        throw new Error('해당 상품의 재고 정보를 찾을 수 없습니다');
+      }
+
+      // 현재 재고량과 새 재고량 차이 계산
+      const currentQuantity = existingInventory.getQuantity();
+      const quantityDifference = newQuantity - currentQuantity;
+
+      if (quantityDifference !== 0) {
+        if (quantityDifference > 0) {
+          // 재고 증가 (입고)
+          existingInventory.restock(quantityDifference, '관리자 재고 수정');
+          console.log('[UpdateProductUseCase] 재고 입고:', quantityDifference);
+        } else {
+          // 재고 감소 (출고)
+          const decreaseAmount = Math.abs(quantityDifference);
+          existingInventory.reduce(decreaseAmount, '관리자 재고 수정');
+          console.log('[UpdateProductUseCase] 재고 출고:', decreaseAmount);
+        }
+
+        // 업데이트된 재고 저장
+        await this.inventoryRepository.save(existingInventory);
+        console.log('[UpdateProductUseCase] 재고 수량 업데이트 완료');
+      } else {
+        console.log('[UpdateProductUseCase] 재고 수량 변경 없음');
+      }
+    } catch (error) {
+      console.error('[UpdateProductUseCase] 재고 수량 업데이트 실패:', error);
+      throw error;
     }
   }
 }

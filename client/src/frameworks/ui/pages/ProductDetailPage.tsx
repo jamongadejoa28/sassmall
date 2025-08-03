@@ -10,6 +10,7 @@ import { useAuthStore } from '../../state/authStore';
 import AddToCartModal from '../components/AddToCartModal';
 import ProductReviews from '../components/ProductReviews';
 import ProductQnA from '../components/ProductQnA';
+import ImageCarousel from '../components/ImageCarousel';
 import { CartProduct } from '../../../types/cart-type/CartProduct';
 
 // ========================================
@@ -21,13 +22,15 @@ interface ProductDetailData {
   name: string;
   description: string;
   price: number; // 할인된 최종 판매가
-  originalPrice?: number; // 원가 (할인이 있는 경우에만)
-  discountPercentage?: number; // 할인율
+  originalPrice: number; // 원가 (항상 포함)
+  discountPercentage: number; // 할인율 (항상 포함, 0일 수 있음)
   sku: string;
   brand: string;
   tags: string[];
   isActive: boolean;
   slug: string;
+  image_urls?: string[]; // 업로드된 이미지 URL 배열
+  thumbnail_url?: string; // 대표 이미지 URL
   category: {
     id: string;
     name: string;
@@ -156,7 +159,7 @@ const ProductDetailPage: React.FC = () => {
           status: product.inventory?.status || 'out_of_stock',
           location: 'MAIN_WAREHOUSE',
         },
-        image_urls: [],
+        image_urls: product.image_urls || [],
         rating: 4.5,
         review_count: 0,
         is_featured: false,
@@ -220,7 +223,7 @@ const ProductDetailPage: React.FC = () => {
           status: product.inventory?.status || 'out_of_stock',
           location: 'MAIN_WAREHOUSE',
         },
-        image_urls: [],
+        image_urls: product.image_urls || [],
         rating: 4.5,
         review_count: 0,
         is_featured: false,
@@ -290,12 +293,19 @@ const ProductDetailPage: React.FC = () => {
   };
 
   const calculateDiscountRate = (): number => {
-    // 새 API 구조에서는 discountPercentage를 직접 제공
+    // discountPercentage는 항상 포함되므로 직접 사용
     return Math.round(product?.discountPercentage || 0);
   };
 
+  const calculateDiscountedPrice = (
+    originalPrice: number,
+    discountPercentage: number
+  ): number => {
+    return originalPrice * (1 - discountPercentage / 100);
+  };
+
   const hasDiscount = (): boolean => {
-    return (product?.discountPercentage || 0) > 0;
+    return product !== null && product.discountPercentage > 0;
   };
 
   const isOutOfStock = (): boolean => {
@@ -435,68 +445,15 @@ const ProductDetailPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* 상품 이미지 섹션 */}
         <div className="space-y-4">
-          {/* 메인 이미지 */}
-          <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-            <img
-              src={`${process.env.PUBLIC_URL}/images/${product.category?.slug}/${product.sku}.png`}
-              alt={product.name}
-              className="w-full h-full object-cover"
-              onError={e => {
-                // 이미지 로드 실패 시 SVG 플레이스홀더로 대체
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.parentElement!.innerHTML = `
-                  <svg
-                    class="h-32 w-32 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                `;
-              }}
-            />
-          </div>
-
-          {/* 썸네일 이미지들 */}
-          <div className="flex space-x-2">
-            {[1, 2, 3, 4].map(index => (
-              <div
-                key={index}
-                className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden"
-              >
-                <img
-                  src={`${process.env.PUBLIC_URL}/images/${product.category?.slug}/${product.sku}.png`}
-                  alt={`${product.name} 썸네일 ${index}`}
-                  className="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
-                  onError={e => {
-                    // 이미지 로드 실패 시 SVG 플레이스홀더로 대체
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.parentElement!.innerHTML = `
-                      <svg
-                        class="h-8 w-8 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                    `;
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+          <ImageCarousel
+            images={product.image_urls || []}
+            alt={product.name}
+            autoPlay={true}
+            autoPlayInterval={5000}
+            showThumbnails={true}
+            showControls={true}
+            className="w-full"
+          />
         </div>
 
         {/* 상품 정보 섹션 */}
@@ -536,14 +493,20 @@ const ProductDetailPage: React.FC = () => {
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-3xl font-bold text-red-600">
-                    {formatPrice(product.price)} {/* 할인된 최종 판매가 */}
+                    {formatPrice(
+                      calculateDiscountedPrice(
+                        product.originalPrice,
+                        product.discountPercentage
+                      )
+                    )}{' '}
+                    {/* 할인된 최종 판매가 */}
                   </span>
                   <span className="text-sm bg-red-100 text-red-600 px-2 py-1 rounded font-medium">
                     {calculateDiscountRate()}% 할인
                   </span>
                 </div>
                 <span className="text-lg text-gray-500 line-through">
-                  {formatPrice(product.originalPrice || 0)} {/* 원가 */}
+                  {formatPrice(product.originalPrice)} {/* 원가 */}
                 </span>
               </div>
             ) : (
@@ -820,7 +783,7 @@ const ProductDetailPage: React.FC = () => {
               status: product.inventory?.status || 'out_of_stock',
               location: 'MAIN_WAREHOUSE',
             },
-            image_urls: [],
+            image_urls: product.image_urls || [],
             rating: 4.5,
             review_count: 0,
             is_featured: false,

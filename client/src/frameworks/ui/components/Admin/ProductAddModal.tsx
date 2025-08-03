@@ -236,7 +236,10 @@ export const ProductAddModal: React.FC<ProductAddModalProps> = ({
       formData.initialStock.quantity === null
     ) {
       newErrors.quantity = '재고 수량을 입력해주세요.';
-    } else if (formData.initialStock.quantity < 0) {
+    } else if (
+      typeof formData.initialStock.quantity === 'number' &&
+      formData.initialStock.quantity < 0
+    ) {
       newErrors.quantity = '재고 수량은 0 이상이어야 합니다.';
     }
 
@@ -255,7 +258,7 @@ export const ProductAddModal: React.FC<ProductAddModalProps> = ({
       newErrors.discountPercent = '할인율은 0~100% 범위 내에서 입력해주세요.';
     }
 
-    // 이미지 검사
+    // 이미지 검사 (이미지 없는 경우는 허용)
     if (formData.images && formData.images.length > 10) {
       newErrors.images = '이미지는 최대 10개까지 업로드 가능합니다.';
     }
@@ -290,12 +293,13 @@ export const ProductAddModal: React.FC<ProductAddModalProps> = ({
       }
 
       try {
-        // 제출 전 데이터 정규화 (quantity가 undefined인 경우 0으로 설정)
+        // 제출 전 데이터 정규화
         const normalizedFormData = {
           ...formData,
+          images: formData.images || [], // 이미지 없으면 빈 배열
           initialStock: {
             ...formData.initialStock,
-            quantity: formData.initialStock.quantity ?? 0,
+            quantity: formData.initialStock.quantity ?? 0, // quantity가 undefined인 경우 0으로 설정
           },
         };
 

@@ -1,10 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import axios from 'axios';
-import {
-  asyncHandler,
-  createValidationError,
-} from '../middleware/errorHandler';
+// Local middleware implementations
 
 // Define types locally
 // Note: User interface defined for potential future use
@@ -123,6 +120,23 @@ const refreshTokenValidation = [
 ];
 
 // ===== 헬퍼 함수 =====
+
+// Async handler wrapper
+const asyncHandler = (fn: (req: Request, res: Response) => Promise<void>) => {
+  return (req: Request, res: Response, next: (error?: Error) => void) => {
+    Promise.resolve(fn(req, res)).catch(next);
+  };
+};
+
+// Create validation error
+const createValidationError = (message: string, errors: any[]) => {
+  const error = new Error(message) as any;
+  error.name = 'ValidationError';
+  error.statusCode = 400;
+  error.validationErrors = errors;
+  return error;
+};
+
 const checkValidationErrors = (req: Request): void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
