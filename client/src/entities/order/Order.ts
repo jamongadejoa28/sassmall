@@ -1,4 +1,5 @@
 import { Product } from '../product/Product';
+import { OrderStatus } from '../../shared/types/order';
 
 export class OrderItem {
   constructor(
@@ -46,11 +47,26 @@ export class Order {
   }
 
   public canBeCancelled(): boolean {
-    return this.status === 'pending' || this.status === 'paid';
+    return (
+      this.status === OrderStatus.PENDING ||
+      this.status === OrderStatus.PAYMENT_IN_PROGRESS ||
+      this.status === OrderStatus.PAYMENT_COMPLETED ||
+      this.status === OrderStatus.CONFIRMED
+    );
   }
 
   public isDelivered(): boolean {
-    return this.status === 'delivered';
+    return this.status === OrderStatus.DELIVERED;
+  }
+
+  public isPaid(): boolean {
+    return (
+      this.status === OrderStatus.PAYMENT_COMPLETED ||
+      this.status === OrderStatus.CONFIRMED ||
+      this.status === OrderStatus.PREPARING_SHIPMENT ||
+      this.status === OrderStatus.SHIPPING ||
+      this.status === OrderStatus.DELIVERED
+    );
   }
 
   public static fromApiResponse(data: any): Order {

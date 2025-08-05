@@ -36,11 +36,19 @@ api.interceptors.request.use(
     if (sessionId) {
       config.headers['X-Session-ID'] = sessionId;
     }
-    // TODO: 로그인 구현 시 여기에 Authorization 헤더 추가
-    // const token = localStorage.getItem('auth_token');
-    // if (token) {
-    //   config.headers['Authorization'] = `Bearer ${token}`;
-    // }
+    // Authorization 헤더 추가 (Zustand persist에서 토큰 가져오기)
+    try {
+      const authStorage = localStorage.getItem('auth-storage');
+      if (authStorage) {
+        const parsedAuth = JSON.parse(authStorage);
+        if (parsedAuth?.state?.tokens?.accessToken) {
+          config.headers['Authorization'] =
+            `Bearer ${parsedAuth.state.tokens.accessToken}`;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load auth token:', error);
+    }
     return config;
   },
   error => {

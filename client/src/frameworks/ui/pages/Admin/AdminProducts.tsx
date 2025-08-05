@@ -111,15 +111,6 @@ const AdminProducts: React.FC = () => {
     return { text: '충분', color: 'text-green-600' };
   };
 
-  // 할인가 계산 함수
-  const calculateDiscountPrice = (
-    originalPrice: number,
-    discountPercent?: number
-  ) => {
-    if (!discountPercent || discountPercent <= 0) return originalPrice;
-    return originalPrice * (1 - discountPercent / 100);
-  };
-
   // 상품 추가 처리
   const handleAddProduct = useCallback(
     async (productData: CreateProductRequest) => {
@@ -617,13 +608,7 @@ const AdminProducts: React.FC = () => {
                             {/* 할인가 */}
                             <div className="font-medium text-red-600">
                               {formatPrice(
-                                product.discountPrice ||
-                                  calculateDiscountPrice(
-                                    product.price,
-                                    product.discountPercentage ||
-                                      product.discount_percent ||
-                                      0
-                                  )
+                                product.discountPrice || product.price
                               )}
                               <span className="ml-2 inline-flex items-center px-2 py-1 text-xs font-bold bg-red-100 text-red-800 rounded-full">
                                 {Math.round(

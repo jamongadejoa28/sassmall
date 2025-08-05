@@ -478,7 +478,10 @@ const ProductsPage: React.FC = () => {
                                 {product.getFormattedPrice()}
                               </span>
                               <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-medium">
-                                {product.getDiscountInfo().percentage}% 할인
+                                {Math.round(
+                                  product.getDiscountInfo().percentage
+                                )}
+                                % 할인
                               </span>
                             </div>
                             <span className="text-sm text-gray-500 line-through">
