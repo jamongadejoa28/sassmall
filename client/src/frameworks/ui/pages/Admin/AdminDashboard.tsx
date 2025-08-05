@@ -4,7 +4,12 @@
 // src/frameworks/ui/pages/Admin/AdminDashboard.tsx
 // ========================================
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+  AdminApiAdapter,
+  DashboardStats,
+} from '../../../../adapters/api/AdminApiAdapter';
+import toast from 'react-hot-toast';
 
 /**
  * AdminDashboard - 관리자 대시보드 메인 페이지
@@ -18,12 +23,46 @@ import React from 'react';
  * 참고: 목업 데이터 없이 UI 구조만 구현
  */
 const AdminDashboard: React.FC = () => {
-  // 통계 카드 데이터 구조 (실제 데이터는 나중에 연동)
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
+    null
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const adminApiAdapter = new AdminApiAdapter();
+
+  // 대시보드 데이터 로드
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const stats = await adminApiAdapter.getDashboardStats();
+      setDashboardStats(stats);
+    } catch (error: any) {
+      console.error('Dashboard loading error:', error);
+      setError(error.message);
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 통계 카드 데이터 구조 (실제 데이터 연동됨)
   const statsCards = [
     {
       title: '총 사용자',
-      value: '--',
-      change: '+0%',
+      value: dashboardStats
+        ? dashboardStats.userStats.totalUsers.toLocaleString()
+        : loading
+          ? '로딩...'
+          : '--',
+      change: dashboardStats
+        ? `+${dashboardStats.userStats.newUsersToday}`
+        : '+0',
       changeType: 'increase' as const,
       icon: (
         <svg
@@ -44,8 +83,14 @@ const AdminDashboard: React.FC = () => {
     },
     {
       title: '총 상품',
-      value: '--',
-      change: '+0%',
+      value: dashboardStats
+        ? dashboardStats.productStats.totalProducts.toLocaleString()
+        : loading
+          ? '로딩...'
+          : '--',
+      change: dashboardStats
+        ? `+${dashboardStats.productStats.productsAddedToday}`
+        : '+0',
       changeType: 'increase' as const,
       icon: (
         <svg
@@ -66,8 +111,14 @@ const AdminDashboard: React.FC = () => {
     },
     {
       title: '총 주문',
-      value: '--',
-      change: '+0%',
+      value: dashboardStats
+        ? dashboardStats.orderStats.totalOrders.toLocaleString()
+        : loading
+          ? '로딩...'
+          : '--',
+      change: dashboardStats
+        ? `+${dashboardStats.orderStats.ordersToday}`
+        : '+0',
       changeType: 'increase' as const,
       icon: (
         <svg
@@ -88,8 +139,14 @@ const AdminDashboard: React.FC = () => {
     },
     {
       title: '총 매출',
-      value: '--',
-      change: '+0%',
+      value: dashboardStats
+        ? `₩${dashboardStats.orderStats.totalRevenue.toLocaleString()}`
+        : loading
+          ? '로딩...'
+          : '--',
+      change: dashboardStats
+        ? `+${Math.round((dashboardStats.orderStats.ordersToday / Math.max(dashboardStats.orderStats.totalOrders, 1)) * 100)}%`
+        : '+0%',
       changeType: 'increase' as const,
       icon: (
         <svg
@@ -136,7 +193,11 @@ const AdminDashboard: React.FC = () => {
             </svg>
             내보내기
           </button>
-          <button className="px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors">
+          <button
+            onClick={loadDashboardData}
+            disabled={loading}
+            className="px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+          >
             <svg
               className="w-4 h-4 inline mr-2"
               fill="none"
@@ -154,6 +215,36 @@ const AdminDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* 에러 상태 표시 */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <svg
+              className="w-5 h-5 text-red-400 mr-3"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <p className="text-red-800">
+              데이터 로드 중 오류가 발생했습니다: {error}
+            </p>
+            <button
+              onClick={loadDashboardData}
+              className="ml-auto text-red-600 hover:text-red-800 font-medium"
+            >
+              다시 시도
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 통계 카드들 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
