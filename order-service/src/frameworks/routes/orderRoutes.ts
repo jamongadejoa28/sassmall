@@ -40,6 +40,13 @@ export function createOrderRoutes(orderController: OrderController): Router {
     async (req, res) => await orderController.getUserOrders(req, res)
   );
 
+  // 주문 통계 조회 (관리자 전용) - /:orderId보다 먼저 정의 필수!
+  router.get('/stats',
+    adminMiddleware,
+    rateLimitMiddleware({ windowMs: 60 * 1000, max: 60 }), // 1분당 60회
+    async (req, res) => await orderController.getOrderStats(req, res)
+  );
+
   // 주문 상세 조회
   router.get('/:orderId',
     rateLimitMiddleware({ windowMs: 60 * 1000, max: 100 }), // 1분당 100회
@@ -97,13 +104,6 @@ export function createOrderRoutes(orderController: OrderController): Router {
     adminMiddleware,
     rateLimitMiddleware({ windowMs: 60 * 1000, max: 100 }), // 1분당 100회
     async (req, res) => await orderController.getOrdersAdmin(req, res)
-  );
-
-  // 주문 통계 조회 (관리자 전용)
-  router.get('/stats',
-    adminMiddleware,
-    rateLimitMiddleware({ windowMs: 60 * 1000, max: 60 }), // 1분당 60회
-    async (req, res) => await orderController.getOrderStats(req, res)
   );
 
   // 주문 상태 업데이트 (관리자)
