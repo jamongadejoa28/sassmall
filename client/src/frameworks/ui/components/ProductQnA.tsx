@@ -6,6 +6,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthStore } from '../../state/authStore';
 import { TokenExpirationHandler } from '../../../shared/utils/tokenExpiration';
 import { ProductQnAApiAdapter } from '../../../adapters/api/ProductQnAApiAdapter';
+import { AdminApiAdapter } from '../../../adapters/api/AdminApiAdapter';
+import toast from 'react-hot-toast';
 
 // ========================================
 // Types & Interfaces
@@ -44,8 +46,21 @@ const ProductQnA: React.FC<ProductQnAProps> = ({ productId }) => {
   // Auth store
   const { isAuthenticated, accessToken, user } = useAuthStore();
 
+  // 관리자 권한 확인
+  const isAdmin = user?.role === 'admin';
+
   // Create a single API adapter instance to avoid multiple initializations
   const apiAdapter = useMemo(() => new ProductQnAApiAdapter(), []);
+  const adminApiAdapter = useMemo(() => new AdminApiAdapter(), []);
+
+  // 답변 모달 관련 상태
+  const [answerModal, setAnswerModal] = useState<{
+    qnaId: string;
+    question: string;
+    userName: string;
+  } | null>(null);
+  const [answerText, setAnswerText] = useState<string>('');
+  const [submittingAnswer, setSubmittingAnswer] = useState<boolean>(false);
 
   // 질문 작성 폼 상태
   const [questionForm, setQuestionForm] = useState({
@@ -57,6 +72,31 @@ const ProductQnA: React.FC<ProductQnAProps> = ({ productId }) => {
   // ========================================
   // API Functions
   // ========================================
+
+  // 답변 제출 함수
+  const handleAnswerSubmit = async () => {
+    if (!answerModal || !answerText.trim()) {
+      toast.error('답변 내용을 입력해주세요.');
+      return;
+    }
+
+    try {
+      setSubmittingAnswer(true);
+      await adminApiAdapter.answerProductQnA(
+        answerModal.qnaId,
+        answerText.trim(),
+        user?.name || '관리자' // 현재 로그인한 사용자 이름 또는 기본값
+      );
+      toast.success('답변이 성공적으로 등록되었습니다.');
+      setAnswerModal(null);
+      setAnswerText('');
+      fetchQnA(currentPage, sortBy); // 목록 새로고침
+    } catch (error: any) {
+      toast.error(error.message || '답변 등록에 실패했습니다.');
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  };
 
   const fetchQnA = useCallback(
     async (page: number = 1, sort: string = 'newest') => {
@@ -394,10 +434,24 @@ const ProductQnA: React.FC<ProductQnAProps> = ({ productId }) => {
                 </div>
               ) : (
                 <div className="border-t border-gray-100 pt-4">
-                  <div className="flex items-center pl-8">
+                  <div className="flex items-center justify-between pl-8">
                     <span className="text-sm text-gray-500">
                       답변 대기 중입니다.
                     </span>
+                    {isAdmin && (
+                      <button
+                        onClick={() =>
+                          setAnswerModal({
+                            qnaId: qna.id,
+                            question: qna.question,
+                            userName: qna.userName,
+                          })
+                        }
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        답변하기
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -445,6 +499,79 @@ const ProductQnA: React.FC<ProductQnAProps> = ({ productId }) => {
           >
             다음
           </button>
+        </div>
+      )}
+
+      {/* 답변 모달 */}
+      {answerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">답변 작성</h3>
+              <button
+                onClick={() => {
+                  setAnswerModal(null);
+                  setAnswerText('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium text-gray-900 mb-2">
+                {answerModal.userName}님의 질문
+              </h4>
+              <p className="text-gray-700">{answerModal.question}</p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                답변 내용
+              </label>
+              <textarea
+                value={answerText}
+                onChange={e => setAnswerText(e.target.value)}
+                rows={6}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="고객의 궁금증을 해결할 수 있는 친절하고 정확한 답변을 작성해주세요."
+                disabled={submittingAnswer}
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setAnswerModal(null);
+                  setAnswerText('');
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={submittingAnswer}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleAnswerSubmit}
+                disabled={submittingAnswer || !answerText.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submittingAnswer ? '답변 등록 중...' : '답변 등록'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

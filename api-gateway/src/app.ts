@@ -276,6 +276,8 @@ if (process.env.NODE_ENV === 'development') {
   console.log('      - ALL  /api/v1/users/* (프록시 -> User Service)');
   console.log('   🛒 Product 라우트:');
   console.log('      - ALL  /api/v1/products/* (프록시 -> Product Service)');
+  console.log('   💬 QnA 라우트:');
+  console.log('      - ALL  /api/v1/qna/* (프록시 -> Product Service)');
   console.log('   🛍️  Cart 라우트:');
   console.log('      - ALL  /api/v1/cart/* (프록시 -> Cart Service)');
   console.log('   📦 Order 라우트:');
@@ -533,6 +535,61 @@ app.put(`${API_VERSION}/products/:id`, upload.array('images', 4), async (req: Re
       requestId: req.id,
     };
     res.status((isAxiosError(error) && error.response?.status) || 500).json(response);
+  }
+});
+
+// QnA 라우트 (Product Service로 프록시)
+app.use(`${API_VERSION}/qna`, async (req: Request, res: Response) => {
+  try {
+    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://127.0.0.1:3003';
+    
+    // Debug logging for QnA proxy requests
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔍 [API Gateway] QnA proxy request: ${req.method} ${req.url}`);
+      console.log(`🔍 [API Gateway] Target URL: ${productServiceUrl}/api/v1/products/qna${req.url}`);
+    }
+    
+    const headers = { ...req.headers };
+    delete headers.host;
+
+    const proxyResponse = await axios({
+      method: req.method,
+      url: `${productServiceUrl}/api/v1/products/qna${req.url}`,
+      data: req.body,
+      headers,
+      timeout: 30000,
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ [API Gateway] QnA proxy success: ${proxyResponse.status}`);
+    }
+
+    res.status(proxyResponse.status).json(proxyResponse.data);
+  } catch (error: unknown) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`❌ [API Gateway] QnA Service 에러:`, error);
+      if (isAxiosError(error) && error.response) {
+        console.error(`❌ [API Gateway] 응답 상태: ${error.response.status}`);
+        console.error(`❌ [API Gateway] 응답 데이터:`, error.response.data);
+      }
+    }
+
+    const response: ApiResponse = {
+      success: false,
+      data: null,
+      error:
+        (isAxiosError(error) && error.response?.data?.message) ||
+        (isAxiosError(error) && error.message) ||
+        'QnA Service 연결 실패',
+      timestamp: getCurrentTimestamp(),
+      requestId: req.id,
+    };
+    res
+      .status(
+        (isAxiosError(error) && error.response?.status) ||
+          HTTP_STATUS.INTERNAL_SERVER_ERROR
+      )
+      .json(response);
   }
 });
 

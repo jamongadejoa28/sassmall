@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AdminApiAdapter } from '../../../../adapters/api/AdminApiAdapter';
+import { useAuthStore } from '../../../state/authStore';
 import toast from 'react-hot-toast';
 
 interface QnAData {
@@ -42,6 +43,9 @@ interface QnAData {
 }
 
 const AdminInquiries: React.FC = () => {
+  // Auth store
+  const { user } = useAuthStore();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [qnaData, setQnaData] = useState<QnAData | null>(null);
@@ -104,7 +108,8 @@ const AdminInquiries: React.FC = () => {
       setSubmittingAnswer(true);
       await adminApiAdapter.answerProductQnA(
         answerModal.qnaId,
-        answerText.trim()
+        answerText.trim(),
+        user?.name || '관리자' // 현재 로그인한 사용자 이름 또는 기본값
       );
       toast.success('답변이 성공적으로 등록되었습니다.');
       setAnswerModal(null);

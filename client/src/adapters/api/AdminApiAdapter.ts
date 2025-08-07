@@ -294,10 +294,15 @@ export class AdminApiAdapter {
   }
 
   // Q&A 답변 작성
-  async answerProductQnA(qnaId: string, answer: string): Promise<void> {
+  async answerProductQnA(
+    qnaId: string,
+    answer: string,
+    answeredBy?: string
+  ): Promise<void> {
     try {
-      await apiClient.put<ApiResponse>(`/products/qna/${qnaId}/answer`, {
+      await apiClient.put<ApiResponse>(`/qna/${qnaId}/answer`, {
         answer,
+        answeredBy: answeredBy || '관리자', // 기본값으로 '관리자' 설정
       });
     } catch (error: any) {
       throw new Error(

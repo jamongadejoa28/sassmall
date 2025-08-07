@@ -28,7 +28,7 @@ import { uploadImages, uploadImagesOptional } from "../../infrastructure/upload/
  * - POST   /api/v1/products/:id/reviews - 상품 리뷰 작성
  * - GET    /api/v1/products/:id/qna - 상품 Q&A 목록 조회
  * - POST   /api/v1/products/:id/qna - 상품 Q&A 작성
- * - PUT    /api/v1/qna/:qnaId/answer - 상품 Q&A 답변
+ * - PUT    /api/v1/products/qna/:qnaId/answer - 상품 Q&A 답변
  *
  * 미들웨어 체인:
  * 1. requestIdMiddleware - 요청 ID 생성
@@ -266,7 +266,7 @@ export function createProductRoutes(): Router {
   );
 
   /**
-   * PUT /api/v1/qna/:qnaId/answer - 상품 Q&A 답변
+   * PUT /api/v1/products/qna/:qnaId/answer - 상품 Q&A 답변
    * 
    * @description 특정 Q&A에 답변을 작성합니다 (관리자 전용)
    * @param qnaId - Q&A UUID

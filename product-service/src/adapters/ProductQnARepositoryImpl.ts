@@ -610,7 +610,7 @@ export class ProductQnARepositoryImpl implements ProductQnARepository {
       const unansweredCount = await unansweredCountQuery.andWhere("qna.is_answered = false").getCount();
 
       // 결과 데이터 변환
-      const qnas: ProductQnAWithProduct[] = rawResults.map(row => ({
+      const qnas: ProductQnAWithProduct[] = rawResults.map((row: any) => ({
         id: row.id,
         productId: row.productid,
         productName: row.productname || '삭제된 상품',
