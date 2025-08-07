@@ -55,7 +55,12 @@ const AdminUsers: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('createdAt_desc');
   const [currentPage, setCurrentPage] = useState(1);
-  // totalPages는 사용하지 않으므로 제거
+  const [usersPagination, setUsersPagination] = useState<{
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  } | null>(null);
 
   // 사용자 수정 모달 상태
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -80,6 +85,7 @@ const AdminUsers: React.FC = () => {
 
       if (usersResponse.success) {
         setUsers(usersResponse.data.users);
+        setUsersPagination(usersResponse.data.pagination);
       }
 
       if (statsResponse.success) {
@@ -623,6 +629,46 @@ const AdminUsers: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* 페이지네이션 */}
+      {usersPagination && usersPagination.totalPages > 1 && (
+        <div className="bg-white rounded-lg border border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              총 {usersPagination.total}명 중{' '}
+              {(currentPage - 1) * usersPagination.limit + 1} -{' '}
+              {Math.min(
+                currentPage * usersPagination.limit,
+                usersPagination.total
+              )}
+              명 표시
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                이전
+              </button>
+              <span className="px-3 py-1 text-sm">
+                {currentPage} / {usersPagination.totalPages}
+              </span>
+              <button
+                onClick={() =>
+                  setCurrentPage(prev =>
+                    Math.min(usersPagination?.totalPages || 1, prev + 1)
+                  )
+                }
+                disabled={currentPage === usersPagination.totalPages}
+                className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                다음
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 사용자 수정 모달 */}
       <AdminUserEditModal

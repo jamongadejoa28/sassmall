@@ -4,12 +4,27 @@
 // src/frameworks/ui/pages/Admin/AdminOrders.tsx
 // ========================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   AdminApiAdapter,
   AdminOrdersResponse,
 } from '../../../../adapters/api/AdminApiAdapter';
+import { apiClient } from '../../../../shared/utils/api';
 import toast from 'react-hot-toast';
+
+// 주문 통계 타입 정의
+interface OrderStats {
+  totalOrders: number;
+  totalRevenue: number;
+  ordersToday: number;
+  revenueToday: number;
+  ordersThisWeek: number;
+  revenueThisWeek: number;
+  ordersThisMonth: number;
+  revenueThisMonth: number;
+  statusCounts: Record<string, number>;
+  averageOrderValue: number;
+}
 
 const AdminOrders: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,14 +37,13 @@ const AdminOrders: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
 
-  const adminApiAdapter = new AdminApiAdapter();
+  // 통계 데이터 상태 추가
+  const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
-  // 주문 목록 로드
-  useEffect(() => {
-    loadOrders();
-  }, [currentPage, statusFilter]);
+  const adminApiAdapter = useMemo(() => new AdminApiAdapter(), []);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -50,7 +64,43 @@ const AdminOrders: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  }, [currentPage, statusFilter, searchQuery, adminApiAdapter]);
+
+  // 주문 통계 로드 함수 추가
+  const loadOrderStats = async () => {
+    try {
+      setStatsLoading(true);
+
+      // apiClient를 사용하여 주문 통계 API 호출
+      const response = await apiClient.get('/orders/stats');
+
+      if (response.data.success) {
+        setOrderStats(response.data.data);
+      } else {
+        throw new Error(
+          response.data.message || '주문 통계 조회에 실패했습니다.'
+        );
+      }
+    } catch (error: any) {
+      console.error('Order stats loading error:', error);
+      // 통계 로드 실패는 토스트로만 알림 (에러 상태는 설정하지 않음)
+      toast.error(
+        error.response?.data?.message || '주문 통계를 불러오는데 실패했습니다.'
+      );
+    } finally {
+      setStatsLoading(false);
+    }
   };
+
+  // 주문 목록과 통계 로드
+  useEffect(() => {
+    loadOrders();
+  }, [currentPage, statusFilter, loadOrders]);
+
+  // 통계는 별도로 로드 (페이지 변경과 무관)
+  useEffect(() => {
+    loadOrderStats();
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +113,7 @@ const AdminOrders: React.FC = () => {
       await adminApiAdapter.updateOrderStatus(orderId, newStatus);
       toast.success('주문 상태가 업데이트되었습니다.');
       loadOrders(); // 목록 새로고침
+      loadOrderStats(); // 통계도 새로고침
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -105,8 +156,9 @@ const AdminOrders: React.FC = () => {
     }
   };
 
+  // 실제 데이터베이스 통계를 사용하는 함수
   const getStatusCounts = () => {
-    if (!ordersData)
+    if (!orderStats || !orderStats.statusCounts) {
       return {
         all: 0,
         pending: 0,
@@ -115,21 +167,27 @@ const AdminOrders: React.FC = () => {
         delivered: 0,
         cancelled: 0,
       };
+    }
 
+    // 데이터베이스 통계에서 상태별 개수 가져오기
+    const dbCounts = orderStats.statusCounts;
     const counts = {
-      all: ordersData.orders.length,
-      pending: 0,
-      confirmed: 0,
-      shipped: 0,
-      delivered: 0,
-      cancelled: 0,
+      all: orderStats.totalOrders,
+      pending:
+        (dbCounts['PENDING'] || 0) + (dbCounts['PAYMENT_IN_PROGRESS'] || 0), // 대기중 + 결제중
+      confirmed:
+        (dbCounts['CONFIRMED'] || 0) +
+        (dbCounts['PAYMENT_COMPLETED'] || 0) +
+        (dbCounts['PREPARING_SHIPMENT'] || 0), // 확인됨 + 결제완료 + 배송준비
+      shipped: dbCounts['SHIPPING'] || 0, // 배송중
+      delivered: dbCounts['DELIVERED'] || 0, // 배송완료
+      cancelled:
+        (dbCounts['CANCELLED'] || 0) +
+        (dbCounts['PAYMENT_FAILED'] || 0) +
+        (dbCounts['REFUND_IN_PROGRESS'] || 0) +
+        (dbCounts['REFUNDED'] || 0), // 취소됨 + 결제실패 + 환불중 + 환불완료
     };
-    ordersData.orders.forEach(order => {
-      const status = order.status.toLowerCase();
-      if (status in counts) {
-        counts[status as keyof typeof counts]++;
-      }
-    });
+
     return counts;
   };
 
@@ -183,8 +241,11 @@ const AdminOrders: React.FC = () => {
             Export Orders
           </button>
           <button
-            onClick={() => loadOrders()}
-            disabled={loading}
+            onClick={() => {
+              loadOrders();
+              loadOrderStats();
+            }}
+            disabled={loading || statsLoading}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
           >
             <svg
@@ -218,7 +279,7 @@ const AdminOrders: React.FC = () => {
             <p
               className={`text-2xl font-bold ${status.color || 'text-gray-900'}`}
             >
-              {loading ? '...' : status.count}
+              {statsLoading ? '...' : status.count.toLocaleString()}
             </p>
             <p className="text-sm text-gray-600 mt-1">{status.label}</p>
           </button>

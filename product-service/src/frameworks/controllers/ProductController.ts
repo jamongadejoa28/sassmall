@@ -42,6 +42,11 @@ import {
   AnswerProductQnARequest 
 } from "../../usecases/AnswerProductQnAUseCase";
 import { 
+  GetAllProductQnAForAdminUseCase,
+  GetAllProductQnAForAdminRequest,
+  GetAllProductQnAForAdminResponse
+} from "../../usecases/GetAllProductQnAForAdminUseCase";
+import { 
   UpdateInventoryUseCase,
   UpdateInventoryRequest,
   UpdateInventoryResponse 
@@ -348,6 +353,9 @@ export class ProductController {
 
     @inject(TYPES.AnswerProductQnAUseCase)
     private readonly answerProductQnAUseCase: AnswerProductQnAUseCase,
+
+    @inject(TYPES.GetAllProductQnAForAdminUseCase)
+    private readonly getAllProductQnAForAdminUseCase: GetAllProductQnAForAdminUseCase,
 
     @inject(TYPES.UpdateInventoryUseCase)
     private readonly updateInventoryUseCase: UpdateInventoryUseCase
@@ -1600,6 +1608,115 @@ export class ProductController {
         const response: ApiResponse<typeof result.data> = {
           success: true,
           message: "Q&A 답변이 성공적으로 작성되었습니다",
+          data: result.data!,
+          timestamp: new Date().toISOString(),
+          requestId: (req.headers["x-request-id"] as string) || "unknown",
+        };
+        res.status(200).json(response);
+      } else {
+        this.handleError(
+          res,
+          result.error!,
+          req.headers["x-request-id"] as string
+        );
+      }
+    } catch (error) {
+      this.handleUnexpectedError(
+        res,
+        error,
+        req.headers["x-request-id"] as string
+      );
+    }
+  }
+
+  /**
+   * @swagger
+   * /api/v1/qna/admin:
+   *   get:
+   *     tags: [Admin Q&A]
+   *     summary: 관리자용 전체 Q&A 목록 조회
+   *     description: 모든 상품의 Q&A를 상품명과 함께 조회합니다 (관리자 전용).
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: page
+   *         schema:
+   *           type: integer
+   *           minimum: 1
+   *           default: 1
+   *         description: 페이지 번호
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           minimum: 1
+   *           maximum: 100
+   *           default: 20
+   *         description: 페이지당 항목 수
+   *       - in: query
+   *         name: search
+   *         schema:
+   *           type: string
+   *         description: 검색어 (상품명, 질문 내용, 사용자명)
+   *       - in: query
+   *         name: status
+   *         schema:
+   *           type: string
+   *           enum: [all, answered, unanswered]
+   *           default: all
+   *         description: 답변 상태 필터
+   *       - in: query
+   *         name: sortBy
+   *         schema:
+   *           type: string
+   *           enum: [newest, oldest, urgent, responseTime]
+   *           default: newest
+   *         description: 정렬 기준
+   *       - in: query
+   *         name: productId
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: 특정 상품 필터
+   *     responses:
+   *       200:
+   *         description: 관리자 Q&A 목록 조회 성공
+   */
+  async getAllQnAForAdmin(req: Request, res: Response): Promise<void> {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        const response: ApiResponse<null> = {
+          success: false,
+          message: "입력 데이터가 올바르지 않습니다",
+          errors: errors.array().map((err) => ({
+            field: err.type === "field" ? err.path : "unknown",
+            message: err.msg,
+          })),
+          data: null,
+          timestamp: new Date().toISOString(),
+          requestId: (req.headers["x-request-id"] as string) || "unknown",
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      const request: GetAllProductQnAForAdminRequest = {
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 20,
+        search: req.query.search as string,
+        status: req.query.status as 'all' | 'answered' | 'unanswered',
+        sortBy: req.query.sortBy as 'newest' | 'oldest' | 'urgent' | 'responseTime',
+        productId: req.query.productId as string,
+      };
+
+      const result = await this.getAllProductQnAForAdminUseCase.execute(request);
+
+      if (result.success) {
+        const response: ApiResponse<typeof result.data> = {
+          success: true,
+          message: "관리자 Q&A 목록을 성공적으로 조회했습니다",
           data: result.data!,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",

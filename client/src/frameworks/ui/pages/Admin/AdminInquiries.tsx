@@ -4,7 +4,7 @@
 // src/frameworks/ui/pages/Admin/AdminInquiries.tsx
 // ========================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AdminApiAdapter } from '../../../../adapters/api/AdminApiAdapter';
 import toast from 'react-hot-toast';
 
@@ -55,14 +55,9 @@ const AdminInquiries: React.FC = () => {
   const [answerText, setAnswerText] = useState('');
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
 
-  const adminApiAdapter = new AdminApiAdapter();
+  const adminApiAdapter = useMemo(() => new AdminApiAdapter(), []);
 
-  // Q&A 목록 로드
-  useEffect(() => {
-    loadQnAs();
-  }, [currentPage, statusFilter]);
-
-  const loadQnAs = async () => {
+  const loadQnAs = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -70,12 +65,10 @@ const AdminInquiries: React.FC = () => {
       const options = {
         page: currentPage,
         limit: 20,
-        answered:
-          statusFilter === 'answered'
-            ? true
-            : statusFilter === 'unanswered'
-              ? false
-              : undefined,
+        status: (statusFilter === 'urgent' ? 'all' : statusFilter) as
+          | 'all'
+          | 'answered'
+          | 'unanswered',
         search: searchQuery || undefined,
       };
 
@@ -88,7 +81,12 @@ const AdminInquiries: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, statusFilter, searchQuery, adminApiAdapter]);
+
+  // Q&A 목록 로드
+  useEffect(() => {
+    loadQnAs();
+  }, [loadQnAs]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

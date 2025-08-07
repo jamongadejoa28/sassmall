@@ -54,31 +54,62 @@ const AdminProducts: React.FC = () => {
   const [editModalLoading, setEditModalLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  // 현재 페이지 상태 추가
+  const [currentPage, setCurrentPage] = useState(1);
+
   // 필터 적용 함수
-  const applyFilters = useCallback(() => {
-    const filters: ProductFilter = {};
+  const applyFilters = useCallback(
+    (page: number = 1) => {
+      const filters: ProductFilter = {
+        page: page,
+        limit: 10, // 페이지당 10개 항목
+      };
 
-    if (searchQuery.trim()) {
-      filters.search = searchQuery.trim();
+      if (searchQuery.trim()) {
+        filters.search = searchQuery.trim();
+      }
+
+      if (selectedCategory !== 'all') {
+        filters.category = selectedCategory;
+      }
+
+      // 상태 필터 추가 (실제 백엔드 API에서 지원할 때 사용)
+      // if (statusFilter !== 'all') {
+      //   filters.isActive = statusFilter === 'active';
+      // }
+
+      fetchProducts(filters);
+    },
+    [searchQuery, selectedCategory, fetchProducts]
+  );
+
+  // 페이지 변경 함수들
+  const goToPage = useCallback(
+    (page: number) => {
+      setCurrentPage(page);
+      applyFilters(page);
+    },
+    [applyFilters]
+  );
+
+  const goToPreviousPage = useCallback(() => {
+    if (pagination?.hasPreviousPage && currentPage > 1) {
+      goToPage(currentPage - 1);
     }
+  }, [pagination?.hasPreviousPage, currentPage, goToPage]);
 
-    if (selectedCategory !== 'all') {
-      filters.category = selectedCategory;
+  const goToNextPage = useCallback(() => {
+    if (pagination?.hasNextPage) {
+      goToPage(currentPage + 1);
     }
-
-    // 상태 필터 추가 (실제 백엔드 API에서 지원할 때 사용)
-    // if (statusFilter !== 'all') {
-    //   filters.isActive = statusFilter === 'active';
-    // }
-
-    fetchProducts(filters);
-  }, [searchQuery, selectedCategory, fetchProducts]);
+  }, [pagination?.hasNextPage, currentPage, goToPage]);
 
   // 검색 및 필터링 처리
   const handleSearch = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      applyFilters();
+      setCurrentPage(1); // 검색 시 첫 페이지로 이동
+      applyFilters(1);
     },
     [applyFilters]
   );
@@ -86,7 +117,8 @@ const AdminProducts: React.FC = () => {
   // 검색어나 필터가 변경될 때 자동으로 적용
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      applyFilters();
+      setCurrentPage(1); // 필터 변경 시 첫 페이지로 이동
+      applyFilters(1);
     }, 300); // 300ms 디바운스
 
     return () => clearTimeout(timeoutId);
@@ -731,6 +763,7 @@ const AdminProducts: React.FC = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <button
+                  onClick={goToPreviousPage}
                   disabled={!pagination.hasPreviousPage}
                   className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                 >
@@ -740,6 +773,7 @@ const AdminProducts: React.FC = () => {
                   {pagination.currentPage} / {pagination.totalPages}
                 </span>
                 <button
+                  onClick={goToNextPage}
                   disabled={!pagination.hasNextPage}
                   className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                 >

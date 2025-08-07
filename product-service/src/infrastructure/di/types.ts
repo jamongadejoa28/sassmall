@@ -34,6 +34,7 @@ export const TYPES = {
   GetProductQnAUseCase: Symbol.for("GetProductQnAUseCase"),
   CreateProductQnAUseCase: Symbol.for("CreateProductQnAUseCase"),
   AnswerProductQnAUseCase: Symbol.for("AnswerProductQnAUseCase"),
+  GetAllProductQnAForAdminUseCase: Symbol.for("GetAllProductQnAForAdminUseCase"),
   UpdateInventoryUseCase: Symbol.for("UpdateInventoryUseCase"),
 
   // Use Cases - Category

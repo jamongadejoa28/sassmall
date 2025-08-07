@@ -6,8 +6,9 @@
 import { injectable, inject } from "inversify";
 import { Repository, DataSource } from "typeorm";
 import { ProductQnA } from "../entities/ProductQnA";
-import { ProductQnARepository } from "../repositories/ProductQnARepository";
+import { ProductQnARepository, AdminQnASearchOptions, AdminQnAStatistics, ProductQnAWithProduct } from "../repositories/ProductQnARepository";
 import { ProductQnAEntity } from "./entities/ProductQnAEntity";
+import { ProductEntity } from "./entities/ProductEntity";
 import { TYPES } from "../infrastructure/di/types";
 
 /**
@@ -352,5 +353,346 @@ export class ProductQnARepositoryImpl implements ProductQnARepository {
     }
 
     return ProductQnA.restore(restoreData);
+  }
+
+  // ========================================
+  // 관리자용 메소드들 구현
+  // ========================================
+
+  /**
+   * 관리자용 전체 Q&A 목록 조회 (상품명 포함)
+   */
+  async findAllForAdmin(options: AdminQnASearchOptions): Promise<{
+    qnas: ProductQnAWithProduct[];
+    totalCount: number;
+    answeredCount: number;
+    unansweredCount: number;
+  }> {
+    try {
+      const offset = (options.page - 1) * options.limit;
+
+      // 기본 쿼리 빌더 생성 (상품과 조인)
+      let queryBuilder = this.repository
+        .createQueryBuilder("qna")
+        .leftJoin(ProductEntity, "product", "product.id = qna.product_id")
+        .select([
+          "qna.id as id",
+          "qna.product_id as productId", 
+          "product.name as productName",
+          "qna.user_name as userName",
+          "qna.question as question",
+          "qna.answer as answer",
+          "qna.is_answered as isAnswered",
+          "qna.answered_by as answeredBy",
+          "qna.answered_at as answeredAt",
+          "qna.is_public as isPublic",
+          "qna.created_at as createdAt",
+          "qna.updated_at as updatedAt",
+          // 응답 시간 계산 (시간 단위)
+          "CASE WHEN qna.is_answered = true AND qna.answered_at IS NOT NULL THEN " +
+          "EXTRACT(EPOCH FROM (qna.answered_at - qna.created_at))/3600 ELSE NULL END as responseTimeHours",
+          // 긴급 여부 (24시간 이상 미답변)
+          "CASE WHEN qna.is_answered = false AND qna.created_at <= NOW() - INTERVAL '24 hours' THEN true ELSE false END as isUrgent",
+          // 품질 답변 여부 (답변 길이 50자 이상)
+          "CASE WHEN qna.answer IS NOT NULL AND LENGTH(qna.answer) >= 50 THEN true ELSE false END as hasQualityAnswer"
+        ]);
+
+      // 검색 조건 추가
+      if (options.search) {
+        queryBuilder = queryBuilder.where(
+          "(product.name ILIKE :search OR qna.question ILIKE :search OR qna.user_name ILIKE :search)",
+          { search: `%${options.search}%` }
+        );
+      }
+
+      // 상태 필터
+      if (options.status === 'answered') {
+        queryBuilder = queryBuilder.andWhere("qna.is_answered = true");
+      } else if (options.status === 'unanswered') {
+        queryBuilder = queryBuilder.andWhere("qna.is_answered = false");
+      }
+
+      // 특정 상품 필터
+      if (options.productId) {
+        queryBuilder = queryBuilder.andWhere("qna.product_id = :productId", { productId: options.productId });
+      }
+
+      // 정렬 조건
+      switch (options.sortBy) {
+        case 'oldest':
+          queryBuilder = queryBuilder.orderBy("qna.created_at", "ASC");
+          break;
+        case 'urgent':
+          queryBuilder = queryBuilder.orderBy("isUrgent", "DESC").addOrderBy("qna.created_at", "ASC");
+          break;
+        case 'responseTime':
+          queryBuilder = queryBuilder.orderBy("responseTimeHours", "ASC");
+          break;
+        default: // newest
+          queryBuilder = queryBuilder.orderBy("qna.created_at", "DESC");
+      }
+
+      // 전체 개수 조회 (페이징 전) - 별도 쿼리 빌더 사용
+      const countQueryBuilder = this.repository
+        .createQueryBuilder("qna")
+        .leftJoin(ProductEntity, "product", "product.id = qna.product_id");
+
+      // count용 쿼리에도 같은 필터 조건 적용
+      if (options.search) {
+        countQueryBuilder.where("(product.name ILIKE :search OR qna.question ILIKE :search OR qna.user_name ILIKE :search)", { search: `%${options.search}%` });
+      }
+
+      if (options.status === 'answered') {
+        countQueryBuilder.andWhere("qna.is_answered = true");
+      } else if (options.status === 'unanswered') {
+        countQueryBuilder.andWhere("qna.is_answered = false");
+      }
+
+      if (options.productId) {
+        countQueryBuilder.andWhere("qna.product_id = :productId", { productId: options.productId });
+      }
+
+      const totalCount = await countQueryBuilder.getCount();
+
+      // 페이징 적용 후 데이터 조회 - 별도 쿼리 빌더 사용
+      const dataQueryBuilder = this.repository
+        .createQueryBuilder("qna")
+        .leftJoin(ProductEntity, "product", "product.id = qna.product_id")
+        .select([
+          "qna.id as id",
+          "qna.product_id as productId",
+          "product.name as productName",
+          "qna.user_name as userName",
+          "qna.question as question",
+          "qna.answer as answer",
+          "qna.is_answered as isAnswered",
+          "qna.answered_by as answeredBy",
+          "qna.answered_at as answeredAt",
+          "qna.is_public as isPublic",
+          "qna.created_at as createdAt",
+          "qna.updated_at as updatedAt",
+          `CASE WHEN qna.is_answered = true AND qna.answered_at IS NOT NULL THEN EXTRACT(EPOCH FROM (qna.answered_at - qna.created_at))/3600 ELSE NULL END as responseTimeHours`,
+          `CASE WHEN qna.is_answered = false AND qna.created_at <= NOW() - INTERVAL '24 hours' THEN true ELSE false END as isUrgent`,
+          `CASE WHEN qna.answer IS NOT NULL AND LENGTH(qna.answer) >= 50 THEN true ELSE false END as hasQualityAnswer`
+        ]);
+
+      // 데이터 조회용 쿼리에도 같은 필터 조건 적용
+      if (options.search) {
+        dataQueryBuilder.where("(product.name ILIKE :search OR qna.question ILIKE :search OR qna.user_name ILIKE :search)", { search: `%${options.search}%` });
+      }
+
+      if (options.status === 'answered') {
+        dataQueryBuilder.andWhere("qna.is_answered = true");
+      } else if (options.status === 'unanswered') {
+        dataQueryBuilder.andWhere("qna.is_answered = false");
+      }
+
+      if (options.productId) {
+        dataQueryBuilder.andWhere("qna.product_id = :productId", { productId: options.productId });
+      }
+
+      // 정렬 조건
+      switch (options.sortBy) {
+        case 'oldest':
+          dataQueryBuilder.orderBy("qna.created_at", "ASC");
+          break;
+        case 'urgent':
+          dataQueryBuilder.orderBy("isUrgent", "DESC").addOrderBy("qna.created_at", "ASC");
+          break;
+        case 'responseTime':
+          dataQueryBuilder.orderBy("responseTimeHours", "ASC");
+          break;
+        default: // newest
+          dataQueryBuilder.orderBy("qna.created_at", "DESC");
+      }
+
+      // 페이징 적용 - 원시 SQL 사용으로 확실하게 처리
+      let baseSql = `
+        SELECT 
+          qna.id as id,
+          qna.product_id as productId,
+          product.name as productName,
+          qna.user_name as userName,
+          qna.question as question,
+          qna.answer as answer,
+          qna.is_answered as isAnswered,
+          qna.answered_by as answeredBy,
+          qna.answered_at as answeredAt,
+          qna.is_public as isPublic,
+          qna.created_at as createdAt,
+          qna.updated_at as updatedAt,
+          CASE WHEN qna.is_answered = true AND qna.answered_at IS NOT NULL 
+               THEN EXTRACT(EPOCH FROM (qna.answered_at - qna.created_at))/3600 
+               ELSE NULL END as responseTimeHours,
+          CASE WHEN qna.is_answered = false AND qna.created_at <= NOW() - INTERVAL '24 hours' 
+               THEN true ELSE false END as isUrgent,
+          CASE WHEN qna.answer IS NOT NULL AND LENGTH(qna.answer) >= 50 
+               THEN true ELSE false END as hasQualityAnswer
+        FROM product_qna qna
+        LEFT JOIN products product ON product.id = qna.product_id
+      `;
+
+      const conditions: string[] = [];
+      const parameters: any[] = [];
+      let paramIndex = 1;
+
+      // 검색 조건
+      if (options.search) {
+        conditions.push(`(product.name ILIKE $${paramIndex} OR qna.question ILIKE $${paramIndex} OR qna.user_name ILIKE $${paramIndex})`);
+        parameters.push(`%${options.search}%`);
+        paramIndex++;
+      }
+
+      // 상태 조건
+      if (options.status === 'answered') {
+        conditions.push(`qna.is_answered = $${paramIndex}`);
+        parameters.push(true);
+        paramIndex++;
+      } else if (options.status === 'unanswered') {
+        conditions.push(`qna.is_answered = $${paramIndex}`);
+        parameters.push(false);
+        paramIndex++;
+      }
+
+      // 상품 ID 조건
+      if (options.productId) {
+        conditions.push(`qna.product_id = $${paramIndex}`);
+        parameters.push(options.productId);
+        paramIndex++;
+      }
+
+      // WHERE 절 추가
+      if (conditions.length > 0) {
+        baseSql += ` WHERE ${conditions.join(' AND ')}`;
+      }
+
+      // 정렬 조건
+      switch (options.sortBy) {
+        case 'oldest':
+          baseSql += ` ORDER BY qna.created_at ASC`;
+          break;
+        case 'urgent':
+          baseSql += ` ORDER BY (CASE WHEN qna.is_answered = false AND qna.created_at <= NOW() - INTERVAL '24 hours' THEN 0 ELSE 1 END), qna.created_at ASC`;
+          break;
+        case 'responseTime':
+          baseSql += ` ORDER BY responseTimeHours ASC NULLS LAST`;
+          break;
+        default: // newest
+          baseSql += ` ORDER BY qna.created_at DESC`;
+      }
+
+      // 페이징 적용 - 확실한 LIMIT과 OFFSET
+      baseSql += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      parameters.push(options.limit, offset);
+
+      console.log(`[ProductQnARepositoryImpl] 실행할 SQL:`, baseSql);
+      console.log(`[ProductQnARepositoryImpl] 파라미터:`, parameters);
+
+      const rawResults = await this.repository.query(baseSql, parameters);
+
+      // 답변/미답변 개수 계산
+      const answeredCountQuery = this.repository.createQueryBuilder("qna");
+      const unansweredCountQuery = this.repository.createQueryBuilder("qna");
+
+      if (options.search) {
+        answeredCountQuery.leftJoin(ProductEntity, "product", "product.id = qna.product_id")
+          .where("(product.name ILIKE :search OR qna.question ILIKE :search OR qna.user_name ILIKE :search)", { search: `%${options.search}%` });
+        unansweredCountQuery.leftJoin(ProductEntity, "product", "product.id = qna.product_id")
+          .where("(product.name ILIKE :search OR qna.question ILIKE :search OR qna.user_name ILIKE :search)", { search: `%${options.search}%` });
+      }
+
+      if (options.productId) {
+        answeredCountQuery.andWhere("qna.product_id = :productId", { productId: options.productId });
+        unansweredCountQuery.andWhere("qna.product_id = :productId", { productId: options.productId });
+      }
+
+      const answeredCount = await answeredCountQuery.andWhere("qna.is_answered = true").getCount();
+      const unansweredCount = await unansweredCountQuery.andWhere("qna.is_answered = false").getCount();
+
+      // 결과 데이터 변환
+      const qnas: ProductQnAWithProduct[] = rawResults.map(row => ({
+        id: row.id,
+        productId: row.productid,
+        productName: row.productname || '삭제된 상품',
+        userName: row.username,
+        question: row.question,
+        answer: row.answer || undefined,
+        isAnswered: row.isanswered,
+        answeredBy: row.answeredby || undefined,
+        answeredAt: row.answeredat ? new Date(row.answeredat) : undefined,
+        isPublic: row.ispublic,
+        responseTimeHours: row.responsetimehours ? Math.round(parseFloat(row.responsetimehours)) : undefined,
+        isUrgent: row.isurgent || false,
+        hasQualityAnswer: row.hasqualityanswer || false,
+        createdAt: new Date(row.createdat),
+        updatedAt: new Date(row.updatedat),
+      }));
+
+      return {
+        qnas,
+        totalCount,
+        answeredCount,
+        unansweredCount,
+      };
+    } catch (error) {
+      console.error("[ProductQnARepository] findAllForAdmin 오류:", error);
+      throw new Error("관리자 Q&A 목록 조회 중 오류가 발생했습니다.");
+    }
+  }
+
+  /**
+   * 전체 Q&A 통계 조회 (관리자용)
+   */
+  async getAllStats(): Promise<AdminQnAStatistics> {
+    try {
+      // 기본 통계 조회
+      const totalQuestions = await this.repository.count();
+      const answeredQuestions = await this.repository.count({ where: { is_answered: true } });
+      const unansweredQuestions = totalQuestions - answeredQuestions;
+
+      // 평균 응답 시간 계산
+      const responseTimeResult = await this.repository
+        .createQueryBuilder("qna")
+        .select("AVG(EXTRACT(EPOCH FROM (qna.answered_at - qna.created_at))/3600)", "avgHours")
+        .where("qna.is_answered = true")
+        .andWhere("qna.answered_at IS NOT NULL")
+        .getRawOne();
+
+      // 긴급 질문 수 (24시간 이상 미답변)
+      const urgentQuestions = await this.repository
+        .createQueryBuilder("qna")
+        .where("qna.is_answered = false")
+        .andWhere("qna.created_at <= NOW() - INTERVAL '24 hours'")
+        .getCount();
+
+      // 오늘 등록된 질문 수
+      const todayQuestions = await this.repository
+        .createQueryBuilder("qna")
+        .where("DATE(qna.created_at) = DATE(NOW())")
+        .getCount();
+
+      // 품질 답변 수 (50자 이상)
+      const qualityAnswers = await this.repository
+        .createQueryBuilder("qna")
+        .where("qna.is_answered = true")
+        .andWhere("qna.answer IS NOT NULL")
+        .andWhere("LENGTH(qna.answer) >= 50")
+        .getCount();
+
+      const averageResponseTimeHours = parseFloat(responseTimeResult?.avgHours || "0");
+
+      return {
+        totalQuestions,
+        answeredQuestions,
+        unansweredQuestions,
+        averageResponseTimeHours: Math.round(averageResponseTimeHours * 10) / 10,
+        urgentQuestions,
+        todayQuestions,
+        qualityAnswers,
+      };
+    } catch (error) {
+      console.error("[ProductQnARepository] getAllStats 오류:", error);
+      throw new Error("Q&A 통계 조회 중 오류가 발생했습니다.");
+    }
   }
 }

@@ -157,17 +157,20 @@ export class AdminApiAdapter {
     }
   }
 
-  // Product Q&A 목록 조회 (문의관리용)
+  // Q&A 목록 조회 - 실제 백엔드 API 호출
   async getProductQnAList(options?: {
     page?: number;
     limit?: number;
     answered?: boolean;
+    status?: 'all' | 'answered' | 'unanswered';
     search?: string;
+    productId?: string;
+    sortBy?: 'newest' | 'oldest' | 'urgent' | 'responseTime';
   }): Promise<{
     qnas: Array<{
       id: string;
       productId: string;
-      productName?: string;
+      productName: string;
       userName: string;
       question: string;
       answer?: string;
@@ -193,132 +196,109 @@ export class AdminApiAdapter {
       answeredQuestions: number;
       unansweredQuestions: number;
       averageResponseTimeHours: number;
+      urgentQuestions: number;
+      todayQuestions: number;
+      qualityAnswers: number;
     };
   }> {
     try {
-      // 실제로는 모든 상품의 Q&A를 조회하는 전용 관리자 API가 필요하지만,
-      // 현재는 개별 상품의 Q&A API를 활용하여 구현
-      // 우선 상품 목록을 가져온 다음, 각 상품의 Q&A를 조회하는 방식으로 구현
+      const params = new URLSearchParams();
 
-      // 먼저 상품 목록 조회
-      const productsResponse =
-        await apiClient.get<ApiResponse>('/products?limit=50');
-      const products = productsResponse.data.data?.products || [];
+      if (options?.page) params.append('page', options.page.toString());
+      if (options?.limit) params.append('limit', options.limit.toString());
+      if (options?.search) params.append('search', options.search);
+      if (options?.productId) params.append('productId', options.productId);
+      if (options?.sortBy) params.append('sortBy', options.sortBy);
 
-      let allQnas: any[] = [];
-      let totalQuestions = 0;
-      let answeredQuestions = 0;
-      let unansweredQuestions = 0;
-      let responseTimeSum = 0;
-      let responseTimeCount = 0;
-
-      // 각 상품의 Q&A 조회
-      for (const product of products.slice(0, 10)) {
-        // 성능을 위해 처음 10개 상품만
-        try {
-          const params = new URLSearchParams();
-          params.append('page', '1');
-          params.append('limit', '20');
-          params.append('includePrivate', 'true'); // 관리자이므로 비공개 Q&A도 포함
-
-          if (options?.answered !== undefined) {
-            params.append('onlyAnswered', options.answered.toString());
-          }
-
-          const qnaResponse = await apiClient.get<ApiResponse>(
-            `/products/${product.id}/qna?${params.toString()}`
-          );
-
-          if (qnaResponse.data.success && qnaResponse.data.data) {
-            const productQnas = qnaResponse.data.data.qnas.map((qna: any) => ({
-              ...qna,
-              productId: product.id,
-              productName: product.name,
-            }));
-
-            allQnas = [...allQnas, ...productQnas];
-
-            // 통계 집계
-            const stats = qnaResponse.data.data.statistics;
-            totalQuestions += stats.totalQuestions;
-            answeredQuestions += stats.answeredQuestions;
-            unansweredQuestions += stats.unansweredQuestions;
-
-            if (stats.averageResponseTimeHours > 0) {
-              responseTimeSum +=
-                stats.averageResponseTimeHours * stats.answeredQuestions;
-              responseTimeCount += stats.answeredQuestions;
-            }
-          }
-        } catch (productQnaError) {
-          // 개별 상품 Q&A 조회 실패는 무시하고 계속 진행
-          console.warn(
-            `Failed to fetch Q&A for product ${product.id}:`,
-            productQnaError
-          );
-        }
+      // status 파라미터 처리 - 우선순위: status > answered
+      if (options?.status && options.status !== 'all') {
+        params.append('status', options.status);
+      } else if (options?.answered !== undefined) {
+        const status = options.answered ? 'answered' : 'unanswered';
+        params.append('status', status);
       }
 
-      // 검색 필터링
-      if (options?.search) {
-        const searchLower = options.search.toLowerCase();
-        allQnas = allQnas.filter(
-          qna =>
-            qna.question.toLowerCase().includes(searchLower) ||
-            qna.userName.toLowerCase().includes(searchLower) ||
-            (qna.productName &&
-              qna.productName.toLowerCase().includes(searchLower)) ||
-            (qna.answer && qna.answer.toLowerCase().includes(searchLower))
+      const response = await apiClient.get<
+        ApiResponse<{
+          qnas: Array<{
+            id: string;
+            productId: string;
+            productName: string;
+            userName: string;
+            question: string;
+            answer?: string;
+            isAnswered: boolean;
+            answeredBy?: string;
+            answeredAt?: string;
+            isPublic: boolean;
+            responseTimeHours?: number;
+            isUrgent: boolean;
+            hasQualityAnswer: boolean;
+            createdAt: string;
+            updatedAt: string;
+          }>;
+          pagination: {
+            currentPage: number;
+            totalPages: number;
+            totalCount: number;
+            hasNextPage: boolean;
+            hasPreviousPage: boolean;
+          };
+          statistics: {
+            totalQuestions: number;
+            answeredQuestions: number;
+            unansweredQuestions: number;
+            averageResponseTimeHours: number;
+            urgentQuestions: number;
+            todayQuestions: number;
+            qualityAnswers: number;
+          };
+        }>
+      >(
+        `/products/qna/admin${params.toString() ? `?${params.toString()}` : ''}`
+      );
+
+      if (!response.data.success) {
+        throw new Error(
+          response.data.error ||
+            response.data.message ||
+            'Q&A 목록 조회에 실패했습니다.'
         );
       }
 
-      // 정렬 (최신순)
-      allQnas.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      const data = response.data.data!;
 
-      // 페이지네이션 적용
-      const page = options?.page || 1;
-      const limit = options?.limit || 20;
-      const startIndex = (page - 1) * limit;
-      const endIndex = startIndex + limit;
-      const paginatedQnas = allQnas.slice(startIndex, endIndex);
-
-      const totalCount = allQnas.length;
-      const totalPages = Math.ceil(totalCount / limit);
+      // 날짜 문자열을 Date 객체로 변환
+      const qnas = data.qnas.map(qna => ({
+        ...qna,
+        answeredAt: qna.answeredAt ? new Date(qna.answeredAt) : undefined,
+        createdAt: new Date(qna.createdAt),
+        updatedAt: new Date(qna.updatedAt),
+      }));
 
       return {
-        qnas: paginatedQnas,
-        pagination: {
-          currentPage: page,
-          totalPages,
-          totalCount,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
-        },
-        statistics: {
-          totalQuestions,
-          answeredQuestions,
-          unansweredQuestions,
-          averageResponseTimeHours:
-            responseTimeCount > 0 ? responseTimeSum / responseTimeCount : 0,
-        },
+        qnas,
+        pagination: data.pagination,
+        statistics: data.statistics,
       };
     } catch (error: any) {
-      console.error('Product QnA list error:', error);
-      throw new Error(
-        error.response?.data?.message ||
-          error.message ||
-          '문의 목록 조회에 실패했습니다.'
-      );
+      console.error('Q&A list error:', error);
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      if (error.message) {
+        throw new Error(error.message);
+      }
+      throw new Error('Q&A 목록 조회에 실패했습니다.');
     }
   }
 
   // Q&A 답변 작성
   async answerProductQnA(qnaId: string, answer: string): Promise<void> {
     try {
-      await apiClient.put<ApiResponse>(`/qna/${qnaId}/answer`, { answer });
+      await apiClient.put<ApiResponse>(`/products/qna/${qnaId}/answer`, {
+        answer,
+      });
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message ||

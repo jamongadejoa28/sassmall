@@ -40,6 +40,7 @@ import { CreateProductReviewUseCase } from "../../usecases/CreateProductReviewUs
 import { GetProductQnAUseCase } from "../../usecases/GetProductQnAUseCase";
 import { CreateProductQnAUseCase } from "../../usecases/CreateProductQnAUseCase";
 import { AnswerProductQnAUseCase } from "../../usecases/AnswerProductQnAUseCase";
+import { GetAllProductQnAForAdminUseCase } from "../../usecases/GetAllProductQnAForAdminUseCase";
 import { UpdateInventoryUseCase } from "../../usecases/UpdateInventoryUseCase";
 
 // Use Cases - Category
@@ -256,6 +257,11 @@ export class DIContainer {
     container
       .bind<AnswerProductQnAUseCase>(TYPES.AnswerProductQnAUseCase)
       .to(AnswerProductQnAUseCase)
+      .inTransientScope();
+
+    container
+      .bind<GetAllProductQnAForAdminUseCase>(TYPES.GetAllProductQnAForAdminUseCase)
+      .to(GetAllProductQnAForAdminUseCase)
       .inTransientScope();
 
     container

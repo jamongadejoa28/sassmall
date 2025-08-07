@@ -242,6 +242,30 @@ export function createProductRoutes(): Router {
   );
 
   /**
+   * GET /api/v1/qna/admin - 관리자용 전체 Q&A 목록 조회
+   * 
+   * @description 모든 상품의 Q&A를 상품명과 함께 조회합니다 (관리자 전용)
+   * @query page - 페이지 번호 (기본값: 1)
+   * @query limit - 페이지당 항목 수 (기본값: 20, 최대: 100)
+   * @query search - 검색어 (상품명, 질문 내용, 사용자명)
+   * @query status - 답변 상태 필터 (all|answered|unanswered, 기본값: all)
+   * @query sortBy - 정렬 기준 (newest|oldest|urgent|responseTime, 기본값: newest)
+   * @query productId - 특정 상품 필터 (UUID)
+   * @returns GetAllProductQnAForAdminResponse
+   * @status 200 - 조회 성공
+   * @status 400 - 잘못된 쿼리 파라미터
+   * @status 401 - 인증 필요
+   * @status 403 - 권한 없음 (관리자만 가능)
+   */
+  router.get(
+    "/qna/admin",
+    requireAuth(), // 필수 인증
+    requireAdmin(), // 관리자 권한 필요
+    // TODO: 추후 validateAdminQnAQuery 미들웨어 추가
+    productController.getAllQnAForAdmin.bind(productController)
+  );
+
+  /**
    * PUT /api/v1/qna/:qnaId/answer - 상품 Q&A 답변
    * 
    * @description 특정 Q&A에 답변을 작성합니다 (관리자 전용)

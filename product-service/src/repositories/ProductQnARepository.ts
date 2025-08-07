@@ -6,6 +6,52 @@
 import { ProductQnA } from "../entities/ProductQnA";
 
 /**
+ * 관리자용 Q&A - 상품명 포함 타입
+ */
+export interface ProductQnAWithProduct {
+  id: string;
+  productId: string;
+  productName: string;
+  userName: string;
+  question: string;
+  answer?: string | undefined;
+  isAnswered: boolean;
+  answeredBy?: string | undefined;
+  answeredAt?: Date | undefined;
+  isPublic: boolean;
+  responseTimeHours?: number | undefined;
+  isUrgent: boolean;
+  hasQualityAnswer: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * 관리자 Q&A 조회 옵션
+ */
+export interface AdminQnASearchOptions {
+  page: number;
+  limit: number;
+  search?: string | undefined; // 상품명, 질문 내용, 사용자명에서 검색
+  status?: 'all' | 'answered' | 'unanswered';
+  sortBy?: 'newest' | 'oldest' | 'urgent' | 'responseTime';
+  productId?: string | undefined; // 특정 상품 필터
+}
+
+/**
+ * 전체 Q&A 통계
+ */
+export interface AdminQnAStatistics {
+  totalQuestions: number;
+  answeredQuestions: number;
+  unansweredQuestions: number;
+  averageResponseTimeHours: number;
+  urgentQuestions: number;
+  todayQuestions: number;
+  qualityAnswers: number;
+}
+
+/**
  * ProductQnA Repository 인터페이스
  * Clean Architecture의 Repository Pattern 구현
  */
@@ -117,4 +163,26 @@ export interface ProductQnARepository {
     answer: string,
     answeredBy: string
   ): Promise<boolean>;
+
+  // ========================================
+  // 관리자용 메소드들
+  // ========================================
+
+  /**
+   * 관리자용 전체 Q&A 목록 조회 (상품명 포함)
+   * @param options 조회 옵션 (페이징, 검색, 필터링, 정렬)
+   * @returns Q&A 목록과 페이지네이션 정보
+   */
+  findAllForAdmin(options: AdminQnASearchOptions): Promise<{
+    qnas: ProductQnAWithProduct[];
+    totalCount: number;
+    answeredCount: number;
+    unansweredCount: number;
+  }>;
+
+  /**
+   * 전체 Q&A 통계 조회 (관리자용)
+   * @returns 전체 Q&A 통계 정보
+   */
+  getAllStats(): Promise<AdminQnAStatistics>;
 }
