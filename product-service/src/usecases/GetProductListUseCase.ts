@@ -28,6 +28,7 @@ export interface GetProductListRequest {
   minPrice?: number;
   maxPrice?: number;
   isActive?: boolean; // 활성 상품 필터링
+  stockStatus?: string;
   sortBy?:
     | "price_asc"
     | "price_desc"
@@ -175,6 +176,8 @@ export class GetProductListUseCase {
         searchOptions.maxPrice = normalizedParams.maxPrice;
       if (normalizedParams.isActive !== undefined)
         searchOptions.isActive = normalizedParams.isActive;
+      if (normalizedParams.stockStatus)
+        searchOptions.stockStatus = normalizedParams.stockStatus;
 
       const { products, total } =
         await this.productRepository.search(searchOptions);
@@ -281,6 +284,7 @@ export class GetProductListUseCase {
       maxPrice: request.maxPrice || undefined,
       sortBy: request.sortBy || "created_desc",
       isActive: request.isActive, // isActive 파라미터 추가
+      stockStatus: request.stockStatus || undefined,
     };
   }
 
@@ -364,6 +368,7 @@ export class GetProductListUseCase {
     if (params.brand) keyParts.push(`brand:${params.brand}`);
     if (params.minPrice) keyParts.push(`minPrice:${params.minPrice}`);
     if (params.maxPrice) keyParts.push(`maxPrice:${params.maxPrice}`);
+    if (params.stockStatus) keyParts.push(`stockStatus:${params.stockStatus}`);
 
     return keyParts.join(":");
   }
@@ -476,8 +481,8 @@ export class GetProductListUseCase {
               : "uncategorized",
           },
           inventory: {
-            availableQuantity: inventory?.getAvailableQuantity() || 0,
-            status: this.determineInventoryStatus(inventory?.getAvailableQuantity() || 0),
+            availableQuantity: inventory?.getQuantity() || 0,
+            status: this.determineInventoryStatus(inventory?.getQuantity() || 0),
           },
           createdAt: product.getCreatedAt(),
         });

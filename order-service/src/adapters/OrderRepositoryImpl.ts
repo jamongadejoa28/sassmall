@@ -483,6 +483,161 @@ export class OrderRepositoryImpl implements OrderRepository {
     }
   }
 
+  // 매출 차트 데이터 조회
+  async getRevenueChartData(period: 'week' | 'month' | '3months' | '6months' | 'year', timezone?: string): Promise<{
+    labels: string[];
+    revenues: number[];
+    orders: number[];
+    period: string;
+    totalRevenue: number;
+    totalOrders: number;
+    averageRevenue: number;
+    growthRate?: number;
+  }> {
+    try {
+      console.log(`[OrderRepositoryImpl] 매출 차트 데이터 조회 시작 - 기간: ${period}`);
+
+      const now = new Date();
+      let startDate: Date;
+      let dateFormat: string;
+      let groupByFormat: string;
+
+      // 기간별 시작 날짜와 포맷 설정
+      switch (period) {
+        case 'week':
+          startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+          dateFormat = 'MM/DD';
+          groupByFormat = 'YYYY-MM-DD';
+          break;
+        case 'month':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+          dateFormat = 'MM/DD';
+          groupByFormat = 'YYYY-MM-DD';
+          break;
+        case '3months':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+          dateFormat = 'MM/DD';
+          groupByFormat = 'YYYY-MM-DD';
+          break;
+        case '6months':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+          dateFormat = 'YYYY-MM';
+          groupByFormat = 'YYYY-MM';
+          break;
+        case 'year':
+          startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+          dateFormat = 'YYYY-MM';
+          groupByFormat = 'YYYY-MM';
+          break;
+        default:
+          throw new Error('지원하지 않는 기간입니다');
+      }
+
+      // PostgreSQL을 사용한 시계열 매출 데이터 조회 (컬럼명 수정)
+      const truncType = (period === 'week' || period === 'month' || period === '3months') ? 'day' : 'month';
+      const query = `
+        SELECT 
+          TO_CHAR(DATE_TRUNC('${truncType}', ordered_at), '${groupByFormat}') as date_key,
+          TO_CHAR(DATE_TRUNC('${truncType}', ordered_at), '${dateFormat}') as formatted_date,
+          COUNT(*) as order_count,
+          SUM(total_amount) as revenue
+        FROM orders 
+        WHERE ordered_at >= $1 
+          AND ordered_at <= $2
+          AND status IN ('PAYMENT_COMPLETED', 'DELIVERED', 'CONFIRMED', 'PREPARING_SHIPMENT', 'SHIPPING')
+        GROUP BY DATE_TRUNC('${truncType}', ordered_at)
+        ORDER BY DATE_TRUNC('${truncType}', ordered_at) ASC
+      `;
+
+      const rawResults = await this.orderRepository.query(query, [startDate, now]);
+
+      // 전체 기간의 빈 날짜/월도 포함하여 데이터 정렬
+      const labels: string[] = [];
+      const revenues: number[] = [];
+      const orders: number[] = [];
+      const dataMap = new Map<string, { revenue: number; orders: number }>();
+
+      // 결과를 맵으로 변환
+      rawResults.forEach((row: any) => {
+        const revenue = parseFloat(row.revenue || '0');
+        const orderCount = parseInt(row.order_count || '0');
+        dataMap.set(row.date_key, { revenue, orders: orderCount });
+      });
+
+      // 기간별 모든 날짜/월 생성하여 데이터 채우기
+      if (period === 'week' || period === 'month' || period === '3months') {
+        // 일별 데이터
+        const current = new Date(startDate);
+        while (current <= now) {
+          const dateKey = current.toISOString().substring(0, 10); // YYYY-MM-DD
+          const formattedDate = `${(current.getMonth() + 1).toString().padStart(2, '0')}/${current.getDate().toString().padStart(2, '0')}`;
+          
+          const data = dataMap.get(dateKey) || { revenue: 0, orders: 0 };
+          labels.push(formattedDate);
+          revenues.push(data.revenue);
+          orders.push(data.orders);
+          
+          current.setDate(current.getDate() + 1);
+        }
+      } else {
+        // 월별 데이터
+        const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        
+        while (current <= end) {
+          const dateKey = `${current.getFullYear()}-${(current.getMonth() + 1).toString().padStart(2, '0')}`;
+          const formattedDate = `${current.getFullYear()}-${(current.getMonth() + 1).toString().padStart(2, '0')}`;
+          
+          const data = dataMap.get(dateKey) || { revenue: 0, orders: 0 };
+          labels.push(formattedDate);
+          revenues.push(data.revenue);
+          orders.push(data.orders);
+          
+          current.setMonth(current.getMonth() + 1);
+        }
+      }
+
+      // 총계 계산
+      const totalRevenue = revenues.reduce((sum, revenue) => sum + revenue, 0);
+      const totalOrders = orders.reduce((sum, orderCount) => sum + orderCount, 0);
+      const averageRevenue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+      // 성장률 계산 (첫 번째 기간 vs 마지막 기간)
+      let growthRate: number | undefined;
+      if (revenues.length >= 2) {
+        const firstPeriodRevenue = revenues.slice(0, Math.floor(revenues.length / 2)).reduce((sum, r) => sum + r, 0);
+        const lastPeriodRevenue = revenues.slice(Math.floor(revenues.length / 2)).reduce((sum, r) => sum + r, 0);
+        
+        if (firstPeriodRevenue > 0) {
+          growthRate = ((lastPeriodRevenue - firstPeriodRevenue) / firstPeriodRevenue) * 100;
+        }
+      }
+
+      console.log(`[OrderRepositoryImpl] 매출 차트 데이터 조회 완료:`, {
+        period,
+        dataPoints: labels.length,
+        totalRevenue,
+        totalOrders,
+        growthRate
+      });
+
+      return {
+        labels,
+        revenues,
+        orders,
+        period,
+        totalRevenue,
+        totalOrders,
+        averageRevenue,
+        growthRate
+      };
+
+    } catch (error) {
+      console.error('매출 차트 데이터 조회 실패:', error);
+      throw new Error('매출 차트 데이터를 조회하는 중 오류가 발생했습니다');
+    }
+  }
+
   // Order 도메인 객체를 OrderEntity로 변환
   private toOrderEntity(order: Order): OrderEntity {
     const entity = new OrderEntity();

@@ -293,6 +293,54 @@ export class AdminApiAdapter {
     }
   }
 
+  // 매출 차트 데이터 조회
+  async getRevenueChart(
+    period: 'week' | 'month' | '3months' | '6months' | 'year' = 'week'
+  ): Promise<{
+    labels: string[];
+    revenues: number[];
+    orders: number[];
+    period: string;
+    totalRevenue: number;
+    totalOrders: number;
+    averageRevenue: number;
+    growthRate?: number;
+  }> {
+    try {
+      const response = await apiClient.get<
+        ApiResponse<{
+          labels: string[];
+          revenues: number[];
+          orders: number[];
+          period: string;
+          totalRevenue: number;
+          totalOrders: number;
+          averageRevenue: number;
+          growthRate?: number;
+        }>
+      >(`/orders/revenue-chart?period=${period}`);
+
+      if (!response.data.success) {
+        throw new Error(
+          response.data.error ||
+            response.data.message ||
+            '매출 차트 데이터 조회에 실패했습니다.'
+        );
+      }
+
+      return response.data.data!;
+    } catch (error: any) {
+      console.error('매출 차트 데이터 조회 오류:', error);
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      if (error.message) {
+        throw new Error(error.message);
+      }
+      throw new Error('매출 차트 데이터 조회에 실패했습니다.');
+    }
+  }
+
   // Q&A 답변 작성
   async answerProductQnA(
     qnaId: string,

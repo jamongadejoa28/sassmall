@@ -32,8 +32,7 @@ export enum InventoryStatus {
  *
  * 재고 관리 핵심 기능:
  * - 총 재고 수량 (quantity)
- * - 가용 재고 수량 (availableQuantity = quantity - reservedQuantity)
- * - 예약된 수량 (reservedQuantity) - 주문 처리 중
+ * - 가용 재고 수량 (availableQuantity = quantity) - 단순화됨
  * - 재고 임계값 관리 (lowStockThreshold)
  * - 재고 위치 정보 (location)
  */
@@ -56,8 +55,8 @@ export class InventoryEntity {
   @Column({ type: "int", default: 0, name: "available_quantity" })
   availableQuantity!: number;
 
-  // Note: reserved_quantity and status columns don't exist in the simplified schema
-  // These are calculated values, not stored in database
+  // Note: reserved_quantity column doesn't exist in the simplified schema
+  // Status is calculated based on available_quantity, not stored in database
 
   // 재고 부족 임계값
   @Column({ type: "int", default: 10, name: "low_stock_threshold" })
@@ -122,7 +121,7 @@ export class InventoryEntity {
     entity.productId = inventory.getProductId();
     entity.quantity = inventory.getQuantity();
     entity.availableQuantity = inventory.getAvailableQuantity();
-    // Note: reservedQuantity and status are calculated, not stored
+    // Note: status is calculated, not stored
 
     entity.lowStockThreshold = inventory.getLowStockThreshold();
     entity.location = inventory.getLocation();
@@ -150,7 +149,6 @@ export class InventoryEntity {
       id: entity.id,
       productId: entity.productId,
       quantity: entity.quantity,
-      reservedQuantity: 0, // Default value since not stored in DB
       lowStockThreshold: entity.lowStockThreshold,
       location: entity.location,
       createdAt: entity.createdAt,
@@ -192,7 +190,6 @@ export class InventoryEntity {
       productId: this.productId,
       quantity: this.quantity,
       availableQuantity: this.availableQuantity,
-      reservedQuantity: 0, // Default value since not stored in DB
       status: this.calculateStatus(), // Calculate status based on available quantity
       location: this.location,
       isLowStock: this.isLowStock(),

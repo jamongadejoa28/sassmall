@@ -29,7 +29,9 @@ export class GetUsersUseCase implements UseCase<GetUsersRequest, GetUsersRespons
         limit: request.limit || 10,
         search: request.search || undefined,
         role: request.role || undefined,
-        isActive: request.isActive || undefined,
+        isActive: request.isActive,
+        sortBy: request.sortBy || undefined,
+        sortOrder: request.sortOrder || undefined,
       });
 
       // 응답 데이터 구성

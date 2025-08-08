@@ -71,6 +71,9 @@ const AdminUsers: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // sortBy 파싱 (예: "createdAt_desc" -> { sortBy: "createdAt", sortOrder: "desc" })
+      const [sortField, sortDirection] = sortBy.split('_');
+
       // 사용자 목록과 통계를 병렬로 로드
       const [usersResponse, statsResponse] = await Promise.all([
         userApiAdapter.getUsers({
@@ -78,7 +81,14 @@ const AdminUsers: React.FC = () => {
           limit: 12,
           search: searchQuery || undefined,
           role: roleFilter ? (roleFilter as 'customer' | 'admin') : undefined,
-          isActive: statusFilter ? statusFilter === 'active' : undefined,
+          isActive:
+            statusFilter === 'active'
+              ? true
+              : statusFilter === 'inactive'
+                ? false
+                : undefined,
+          sortBy: sortField,
+          sortOrder: sortDirection as 'asc' | 'desc',
         }),
         userApiAdapter.getUserStats(),
       ]);
@@ -97,7 +107,14 @@ const AdminUsers: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchQuery, roleFilter, statusFilter, userApiAdapter]);
+  }, [
+    currentPage,
+    searchQuery,
+    roleFilter,
+    statusFilter,
+    sortBy,
+    userApiAdapter,
+  ]);
 
   // 데이터 로드
   useEffect(() => {
@@ -300,7 +317,10 @@ const AdminUsers: React.FC = () => {
           <div className="flex items-center space-x-3">
             <select
               value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
+              onChange={e => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="text-sm border border-gray-300 rounded-lg px-3 py-2"
             >
               <option value="">모든 사용자</option>
@@ -309,7 +329,10 @@ const AdminUsers: React.FC = () => {
             </select>
             <select
               value={roleFilter}
-              onChange={e => setRoleFilter(e.target.value)}
+              onChange={e => {
+                setRoleFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="text-sm border border-gray-300 rounded-lg px-3 py-2"
             >
               <option value="">모든 권한</option>
@@ -318,7 +341,10 @@ const AdminUsers: React.FC = () => {
             </select>
             <select
               value={sortBy}
-              onChange={e => setSortBy(e.target.value)}
+              onChange={e => {
+                setSortBy(e.target.value);
+                setCurrentPage(1);
+              }}
               className="text-sm border border-gray-300 rounded-lg px-3 py-2"
             >
               <option value="createdAt_desc">최신 가입순</option>

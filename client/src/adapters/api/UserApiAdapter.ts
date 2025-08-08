@@ -144,6 +144,8 @@ export class UserApiAdapter {
     search?: string;
     role?: 'customer' | 'admin';
     isActive?: boolean;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
   }): Promise<ApiResponse<UserListResponse>> {
     try {
       const params = new URLSearchParams();
@@ -154,6 +156,8 @@ export class UserApiAdapter {
       if (options?.role) params.append('role', options.role);
       if (options?.isActive !== undefined)
         params.append('isActive', options.isActive.toString());
+      if (options?.sortBy) params.append('sortBy', options.sortBy);
+      if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
 
       const response = await apiClient.get<ApiResponse<UserListResponse>>(
         `${API_ENDPOINTS.ADMIN.USERS}?${params.toString()}`

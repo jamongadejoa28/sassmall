@@ -32,7 +32,6 @@ export interface ProductDetailResponse {
   };
   inventory: {
     availableQuantity: number;
-    reservedQuantity: number;
     status: string;
     lowStockThreshold: number;
   };
@@ -146,13 +145,11 @@ export class GetProductDetailUseCase {
     const inventoryInfo = inventory
       ? {
           availableQuantity: availableQuantity,
-          reservedQuantity: inventory.getReservedQuantity(),
           status: this.determineInventoryStatus(availableQuantity),
           lowStockThreshold: inventory.getLowStockThreshold(),
         }
       : {
           availableQuantity: 0,
-          reservedQuantity: 0,
           status: this.determineInventoryStatus(0),
           lowStockThreshold: 0,
         };

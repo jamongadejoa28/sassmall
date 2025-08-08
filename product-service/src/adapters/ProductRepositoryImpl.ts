@@ -6,6 +6,7 @@ import { injectable, inject } from "inversify";
 import { Repository, DataSource, SelectQueryBuilder } from "typeorm";
 import { Product } from "../entities/Product";
 import { ProductEntity } from "./entities/ProductEntity";
+import { InventoryEntity } from "./entities/InventoryEntity";
 import { ProductRepository } from "../usecases/types";
 import { TYPES } from "../infrastructure/di/types";
 
@@ -221,6 +222,7 @@ export class ProductRepositoryImpl implements ProductRepository {
     maxPrice?: number;
     tags?: string[];
     isActive?: boolean;
+    stockStatus?: string;
     page?: number;
     limit?: number;
     sortBy?: string;
@@ -249,161 +251,93 @@ export class ProductRepositoryImpl implements ProductRepository {
       console.log('[DEBUG] isActive handling - hasOwnProperty:', options.hasOwnProperty('isActive'), 'isActive value:', isActive);
 
       const queryBuilder = this.repository.createQueryBuilder("product");
-      let hasWhereClause = false;
+      const conditions: string[] = [];
+      const parameters: any = {};
 
-      // 단순한 isActive 필터링:
-      console.log('[DEBUG] isActive value:', isActive, 'type:', typeof isActive);
-      
-      if (isActive === undefined) {
-        // isActive가 undefined인 경우 = 관리자용 모든 상품 조회
-        console.log('[DEBUG] 관리자 모드 - 모든 상품 조회 (필터링 없음)');
-        // 필터링하지 않음
-      } else if (isActive === true) {
-        // 활성 상품만
-        queryBuilder.where("product.is_active = :isActive", { isActive: true });
-        hasWhereClause = true;
-        console.log('[DEBUG] 활성 상품만 필터링');
-      } else if (isActive === false) {
-        // 비활성 상품만
-        queryBuilder.where("product.is_active = :isActive", { isActive: false });
-        hasWhereClause = true;
-        console.log('[DEBUG] 비활성 상품만 필터링');
-      } else {
-        // 기본값: 일반 사용자용 - 활성 상품만
-        queryBuilder.where("product.is_active = :isActive", { isActive: true });
-        hasWhereClause = true;
-        console.log('[DEBUG] 기본값 - 활성 상품만 필터링');
+      // isActive 필터링
+      if (isActive !== undefined) {
+        conditions.push("product.is_active = :isActive");
+        parameters.isActive = isActive;
       }
 
-      // 텍스트 검색 (상품명, 설명, 브랜드)
+      // 텍스트 검색
       if (search) {
-        const searchCondition = "(COALESCE(LOWER(product.name), '') LIKE LOWER(:search) OR " +
-          "COALESCE(LOWER(product.description), '') LIKE LOWER(:search) OR " +
-          "COALESCE(LOWER(product.brand), '') LIKE LOWER(:search))";
-        
-        if (hasWhereClause) {
-          queryBuilder.andWhere(searchCondition, { search: `%${search}%` });
-        } else {
-          queryBuilder.where(searchCondition, { search: `%${search}%` });
-          hasWhereClause = true;
-        }
+        conditions.push("(COALESCE(LOWER(product.name), '') LIKE LOWER(:search) OR COALESCE(LOWER(product.description), '') LIKE LOWER(:search) OR COALESCE(LOWER(product.brand), '') LIKE LOWER(:search))");
+        parameters.search = `%${search}%`;
       }
 
       // 카테고리 필터
-      if (categoryId || categoryName || categoryNames) {
-        // 카테고리와 JOIN하여 ID 또는 이름으로 검색
+      if (categoryId) {
         queryBuilder.leftJoin("categories", "category", "product.category_id = category.id");
-        
-        if (categoryId) {
-          const categoryCondition = "product.category_id = :categoryId";
-          if (hasWhereClause) {
-            queryBuilder.andWhere(categoryCondition, { categoryId });
-          } else {
-            queryBuilder.where(categoryCondition, { categoryId });
-            hasWhereClause = true;
-          }
-        } else if (categoryName) {
-          const categoryCondition = "LOWER(category.name) = LOWER(:categoryName)";
-          if (hasWhereClause) {
-            queryBuilder.andWhere(categoryCondition, { categoryName });
-          } else {
-            queryBuilder.where(categoryCondition, { categoryName });
-            hasWhereClause = true;
-          }
-        } else if (categoryNames && categoryNames.length > 0) {
-          // 다중 카테고리 검색: OR 조건으로 처리
-          const categoryConditions = categoryNames.map((_, index) => 
-            `LOWER(category.name) = LOWER(:categoryName${index})`
-          ).join(' OR ');
-          
-          const categoryParams: { [key: string]: string } = {};
-          categoryNames.forEach((name, index) => {
-            categoryParams[`categoryName${index}`] = name;
-          });
-          
-          const categoryCondition = `(${categoryConditions})`;
-          if (hasWhereClause) {
-            queryBuilder.andWhere(categoryCondition, categoryParams);
-          } else {
-            queryBuilder.where(categoryCondition, categoryParams);
-            hasWhereClause = true;
-          }
-        }
+        conditions.push("product.category_id = :categoryId");
+        parameters.categoryId = categoryId;
+      } else if (categoryName) {
+        queryBuilder.leftJoin("categories", "category", "product.category_id = category.id");
+        conditions.push("LOWER(category.name) = LOWER(:categoryName)");
+        parameters.categoryName = categoryName;
+      } else if (categoryNames && categoryNames.length > 0) {
+        queryBuilder.leftJoin("categories", "category", "product.category_id = category.id");
+        const categoryConditions = categoryNames.map((_, index) => `LOWER(category.name) = LOWER(:categoryName${index})`).join(' OR ');
+        const categoryParams: { [key: string]: string } = {};
+        categoryNames.forEach((name, index) => {
+          parameters[`categoryName${index}`] = name;
+        });
+        conditions.push(`(${categoryConditions})`);
       }
 
-      // 브랜드 필터 (단일 브랜드 또는 다중 브랜드 지원)
+      // 재고 상태 필터
+      if (options.stockStatus) {
+        const subQuery = this.dataSource.createQueryBuilder()
+          .select("inventory.productId")
+          .from(InventoryEntity, "inventory");
+
+        switch (options.stockStatus) {
+          case 'inStock':
+            subQuery.where("inventory.quantity > 10");
+            break;
+          case 'lowStock':
+            subQuery.where("inventory.quantity > 0 AND inventory.quantity <= 10");
+            break;
+          case 'outOfStock':
+            subQuery.where("inventory.quantity <= 0");
+            break;
+        }
+        conditions.push("product.id IN (" + subQuery.getQuery() + ")");
+        Object.assign(parameters, subQuery.getParameters());
+      }
+
+      // 브랜드 필터
       if (brand) {
-        if (Array.isArray(brand)) {
-          // 다중 브랜드 필터링
-          if (brand.length > 0) {
-            const brandConditions = brand
-              .map((_, index) => `COALESCE(LOWER(product.brand), '') = LOWER(:brand${index})`)
-              .join(" OR ");
-            
-            const brandCondition = `(${brandConditions})`;
-            if (hasWhereClause) {
-              queryBuilder.andWhere(brandCondition);
-            } else {
-              queryBuilder.where(brandCondition);
-              hasWhereClause = true;
-            }
-            
-            // 파라미터 바인딩
-            brand.forEach((brandName, index) => {
-              queryBuilder.setParameter(`brand${index}`, brandName);
-            });
-          }
-        } else {
-          // 단일 브랜드 필터링
-          const brandCondition = "COALESCE(LOWER(product.brand), '') = LOWER(:brand)";
-          if (hasWhereClause) {
-            queryBuilder.andWhere(brandCondition, { brand });
-          } else {
-            queryBuilder.where(brandCondition, { brand });
-            hasWhereClause = true;
-          }
+        if (Array.isArray(brand) && brand.length > 0) {
+          const brandConditions = brand.map((_, index) => `COALESCE(LOWER(product.brand), '') = LOWER(:brand${index})`).join(" OR ");
+          brand.forEach((brandName, index) => { parameters[`brand${index}`] = brandName; });
+          conditions.push(`(${brandConditions})`);
+        } else if (typeof brand === 'string') {
+          conditions.push("COALESCE(LOWER(product.brand), '') = LOWER(:brand)");
+          parameters.brand = brand;
         }
       }
 
       // 가격 범위 필터
       if (minPrice !== undefined) {
-        const minPriceCondition = "product.price >= :minPrice";
-        if (hasWhereClause) {
-          queryBuilder.andWhere(minPriceCondition, { minPrice });
-        } else {
-          queryBuilder.where(minPriceCondition, { minPrice });
-          hasWhereClause = true;
-        }
+        conditions.push("product.price >= :minPrice");
+        parameters.minPrice = minPrice;
       }
-
       if (maxPrice !== undefined) {
-        const maxPriceCondition = "product.price <= :maxPrice";
-        if (hasWhereClause) {
-          queryBuilder.andWhere(maxPriceCondition, { maxPrice });
-        } else {
-          queryBuilder.where(maxPriceCondition, { maxPrice });
-          hasWhereClause = true;
-        }
+        conditions.push("product.price <= :maxPrice");
+        parameters.maxPrice = maxPrice;
       }
 
-      // 태그 필터 (PostgreSQL JSON 연산 사용)
+      // 태그 필터
       if (tags && tags.length > 0) {
-        const tagConditions = tags
-          .map((_, index) => `product.tags::jsonb ? :tag${index}`)
-          .join(" AND ");
+        const tagConditions = tags.map((_, index) => `product.tags::jsonb ? :tag${index}`).join(" AND ");
+        tags.forEach((tag, index) => { parameters[`tag${index}`] = tag; });
+        conditions.push(`(${tagConditions})`);
+      }
 
-        const tagCondition = `(${tagConditions})`;
-        if (hasWhereClause) {
-          queryBuilder.andWhere(tagCondition);
-        } else {
-          queryBuilder.where(tagCondition);
-          hasWhereClause = true;
-        }
-
-        // 파라미터 바인딩
-        tags.forEach((tag, index) => {
-          queryBuilder.setParameter(`tag${index}`, tag);
-        });
+      // 모든 조건을 AND로 결합
+      if (conditions.length > 0) {
+        queryBuilder.where(conditions.join(" AND "), parameters);
       }
 
       // 정렬

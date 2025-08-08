@@ -10,6 +10,7 @@ import {
   DashboardStats,
 } from '../../../../adapters/api/AdminApiAdapter';
 import toast from 'react-hot-toast';
+import RevenueChart from '../../components/Admin/RevenueChart';
 
 /**
  * AdminDashboard - 관리자 대시보드 메인 페이지
@@ -278,35 +279,8 @@ const AdminDashboard: React.FC = () => {
       {/* 차트 및 테이블 영역 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 매출 차트 */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">매출 추이</h3>
-            <select className="text-sm border border-gray-300 rounded-lg px-3 py-2">
-              <option>최근 7일</option>
-              <option>최근 30일</option>
-              <option>최근 3개월</option>
-            </select>
-          </div>
-
-          {/* 차트 영역 - 실제 차트 라이브러리 연동 전까지 빈 상태 */}
-          <div className="h-80 bg-gray-50 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <svg
-                className="w-16 h-16 text-gray-400 mx-auto mb-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
-              </svg>
-              <p className="text-gray-500">차트 데이터 준비 중</p>
-            </div>
-          </div>
+        <div className="lg:col-span-2">
+          <RevenueChart />
         </div>
 
         {/* 빠른 통계 */}

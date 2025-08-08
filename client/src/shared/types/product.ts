@@ -28,7 +28,7 @@ export interface Product {
   min_order_quantity?: number;
   max_order_quantity?: number;
   inventory: {
-    available_quantity: number;
+    availableQuantity: number;
     inventory_status: string;
     location: string;
     low_stock_threshold?: number;
@@ -56,6 +56,7 @@ export interface ProductFilter {
   maxPrice?: number | undefined;
   rating?: number | undefined;
   tags?: string[];
+  stockStatus?: string;
   sortBy?: 'price' | 'rating' | 'review_count' | 'createdAt' | 'name';
   sortOrder?: 'asc' | 'desc';
   page?: number;

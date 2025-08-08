@@ -322,7 +322,7 @@ export class UserController {
         return;
       }
 
-      const { page, limit, search, role, isActive } = req.query;
+      const { page, limit, search, role, isActive, sortBy, sortOrder } = req.query;
 
       const result = await this.getUsersUseCase.execute({
         page: page ? parseInt(page as string) : 1,
@@ -330,6 +330,8 @@ export class UserController {
         search: search ? (search as string) : undefined,
         role: role ? (role as 'customer' | 'admin') : undefined,
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+        sortBy: sortBy ? (sortBy as string) : undefined,
+        sortOrder: sortOrder && (sortOrder === 'asc' || sortOrder === 'desc') ? sortOrder : undefined,
       });
 
       if (result.success) {

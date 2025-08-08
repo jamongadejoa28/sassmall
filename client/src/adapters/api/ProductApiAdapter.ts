@@ -162,7 +162,8 @@ export class ProductApiAdapter {
     const params = new URLSearchParams();
 
     if (filters.search) params.set('search', filters.search);
-    if (filters.category) params.set('category', filters.category);
+    if (filters.category) params.set('categoryId', filters.category);
+    if (filters.stockStatus) params.set('stockStatus', filters.stockStatus);
     if (filters.brand && filters.brand.length > 0)
       params.set('brand', filters.brand[0]);
     if (filters.minPrice !== null && filters.minPrice !== undefined)
@@ -198,7 +199,8 @@ export class ProductApiAdapter {
     const params = new URLSearchParams();
 
     if (filters.search) params.set('search', filters.search);
-    if (filters.category) params.set('category', filters.category);
+    if (filters.category) params.set('categoryId', filters.category);
+    if (filters.stockStatus) params.set('stockStatus', filters.stockStatus);
     if (filters.brand && filters.brand.length > 0)
       params.set('brand', filters.brand[0]);
     if (filters.minPrice !== null && filters.minPrice !== undefined)

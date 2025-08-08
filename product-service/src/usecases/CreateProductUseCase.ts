@@ -286,7 +286,6 @@ export class CreateProductUseCase
       const inventory = Inventory.create({
         productId,
         quantity: initialStock.quantity,
-        reservedQuantity: 0, // 초기 예약량은 0
         lowStockThreshold: initialStock.lowStockThreshold,
         location: initialStock.location,
       });

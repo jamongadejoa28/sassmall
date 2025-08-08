@@ -73,14 +73,19 @@ const AdminProducts: React.FC = () => {
         filters.category = selectedCategory;
       }
 
-      // 상태 필터 추가 (실제 백엔드 API에서 지원할 때 사용)
-      // if (statusFilter !== 'all') {
-      //   filters.isActive = statusFilter === 'active';
-      // }
+      // 상태 필터 추가
+      if (statusFilter === 'active') {
+        filters.isActive = true;
+      } else if (statusFilter === 'inactive') {
+        filters.isActive = false;
+      } else if (statusFilter === 'out_of_stock') {
+        filters.stockStatus = 'outOfStock';
+      }
+      // statusFilter === 'all'이면 isActive를 설정하지 않음 (모든 상품 조회)
 
       fetchProducts(filters);
     },
-    [searchQuery, selectedCategory, fetchProducts]
+    [searchQuery, selectedCategory, statusFilter, fetchProducts]
   );
 
   // 페이지 변경 함수들
@@ -570,7 +575,7 @@ const AdminProducts: React.FC = () => {
           <div className="divide-y divide-gray-200">
             {products.map((product: Product) => {
               const stockStatus = getStockStatus(
-                product.inventory.available_quantity
+                product.inventory.availableQuantity
               );
               return (
                 <div key={product.id} className="px-6 py-4 hover:bg-gray-50">
@@ -673,7 +678,7 @@ const AdminProducts: React.FC = () => {
                         재고:{' '}
                       </span>
                       <div className="font-medium text-gray-900 inline">
-                        {product.inventory.available_quantity}
+                        {product.inventory.availableQuantity}
                       </div>
                       <div
                         className={`text-sm ${stockStatus.color} inline ml-2`}

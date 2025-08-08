@@ -118,7 +118,7 @@ export class PostgreSQLUserRepository implements UserRepository {
   }
 
   /**
-   * 사용자 목록 조회 (페이징, 검색, 필터링 지원)
+   * 사용자 목록 조회 (페이징, 검색, 필터링, 정렬 지원)
    */
   async findMany(options: {
     page?: number | undefined;
@@ -126,6 +126,8 @@ export class PostgreSQLUserRepository implements UserRepository {
     search?: string | undefined;
     role?: 'customer' | 'admin' | undefined;
     isActive?: boolean | undefined;
+    sortBy?: string | undefined;
+    sortOrder?: 'asc' | 'desc' | undefined;
   }): Promise<{
     users: User[];
     total: number;
@@ -158,8 +160,22 @@ export class PostgreSQLUserRepository implements UserRepository {
       // 페이징
       queryBuilder.skip(skip).take(limit);
 
-      // 정렬 (최신 생성순)
-      queryBuilder.orderBy('user.createdAt', 'DESC');
+      // 정렬 처리
+      const sortBy = options.sortBy || 'createdAt';
+      const sortOrder = options.sortOrder || 'DESC';
+      
+      // 정렬 필드 매핑 (클라이언트에서 전송하는 필드명을 데이터베이스 필드명으로 변환)
+      const sortFieldMap: { [key: string]: string } = {
+        'name': 'user.name',
+        'email': 'user.email', 
+        'createdAt': 'user.createdAt',
+        'lastLoginAt': 'user.lastLoginAt',
+        'role': 'user.role',
+        'isActive': 'user.isActive'
+      };
+      
+      const dbSortField = sortFieldMap[sortBy] || 'user.createdAt';
+      queryBuilder.orderBy(dbSortField, sortOrder.toUpperCase() as 'ASC' | 'DESC');
 
       // 데이터 조회
       const [userEntities, total] = await queryBuilder.getManyAndCount();

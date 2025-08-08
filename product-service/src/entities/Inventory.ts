@@ -20,7 +20,6 @@ export enum InventoryStatus {
 export interface CreateInventoryData {
   productId: string;
   quantity: number;
-  reservedQuantity: number;
   lowStockThreshold: number;
   location: string;
 }
@@ -32,7 +31,6 @@ export interface RestoreInventoryData {
   id: string;
   productId: string;
   quantity: number;
-  reservedQuantity: number;
   lowStockThreshold: number;
   location: string;
   lastRestockedAt?: Date | undefined;
@@ -48,7 +46,6 @@ export interface InventorySummary {
   productId: string;
   quantity: number;
   availableQuantity: number;
-  reservedQuantity: number;
   status: InventoryStatus;
   location: string;
   isLowStock: boolean;
@@ -63,13 +60,12 @@ export interface InventorySummary {
  * Inventory Entity - 재고 도메인 객체
  *
  * 책임:
- * 1. 재고 수량 관리 (전체, 예약, 사용 가능)
+ * 1. 재고 수량 관리 (간단한 수량 추적)
  * 2. 재고 상태 자동 계산 (충분/부족/품절)
  * 3. 재고 입고/출고 처리
- * 4. 예약 재고 관리
- * 5. 재고 임계값 관리
- * 6. 재고 변동 이벤트 발행
- * 7. 비즈니스 규칙 검증
+ * 4. 재고 임계값 관리
+ * 5. 재고 변동 이벤트 발행
+ * 6. 비즈니스 규칙 검증
  */
 export class Inventory {
   private lastRestockQuantity: number = 0; // 최근 입고 수량 추적
@@ -78,7 +74,6 @@ export class Inventory {
     private readonly id: string,
     private readonly productId: string,
     private quantity: number,
-    private reservedQuantity: number,
     private lowStockThreshold: number,
     private readonly location: string,
     private lastRestockedAt?: Date,
@@ -103,7 +98,6 @@ export class Inventory {
       uuidv4(),
       data.productId.trim(),
       data.quantity,
-      data.reservedQuantity,
       data.lowStockThreshold,
       data.location.trim(),
       undefined, // 새 재고는 입고 이력 없음
@@ -125,7 +119,6 @@ export class Inventory {
       data.id,
       data.productId,
       data.quantity,
-      data.reservedQuantity,
       data.lowStockThreshold,
       data.location,
       data.lastRestockedAt,
@@ -149,15 +142,6 @@ export class Inventory {
       throw new Error("재고 수량은 0 이상이어야 합니다");
     }
 
-    // 예약 수량 검증
-    if (data.reservedQuantity < 0) {
-      throw new Error("예약 수량은 0 이상이어야 합니다");
-    }
-
-    // 예약 수량이 전체 수량을 초과하지 않는지 검증
-    if (data.reservedQuantity > data.quantity) {
-      throw new Error("예약 수량은 전체 수량을 초과할 수 없습니다");
-    }
 
     // 부족 임계값 검증
     if (data.lowStockThreshold < 0) {
@@ -186,9 +170,6 @@ export class Inventory {
     return this.quantity;
   }
 
-  getReservedQuantity(): number {
-    return this.reservedQuantity;
-  }
 
   getLowStockThreshold(): number {
     return this.lowStockThreshold;
@@ -215,10 +196,10 @@ export class Inventory {
   // ========================================
 
   /**
-   * 사용 가능한 재고 수량 계산
+   * 사용 가능한 재고 수량 (단순히 quantity 반환)
    */
   getAvailableQuantity(): number {
-    return this.quantity - this.reservedQuantity;
+    return this.quantity;
   }
 
   /**
@@ -287,10 +268,9 @@ export class Inventory {
       throw new Error("출고 이유는 필수입니다");
     }
 
-    // 사용 가능한 재고 확인
-    const availableQuantity = this.getAvailableQuantity();
-    if (quantity > availableQuantity) {
-      throw new Error("출고 수량이 사용 가능한 재고를 초과합니다");
+    // 재고 수량 확인
+    if (quantity > this.quantity) {
+      throw new Error("출고 수량이 현재 재고를 초과합니다");
     }
 
     // 재고 수량 감소
@@ -298,50 +278,6 @@ export class Inventory {
     this.updatedAt = new Date();
   }
 
-  /**
-   * 재고 예약 처리
-   */
-  reserve(quantity: number, reason: string): void {
-    // 입력 검증
-    if (quantity <= 0) {
-      throw new Error("예약 수량은 0보다 커야 합니다");
-    }
-    if (!reason || reason.trim().length === 0) {
-      throw new Error("예약 이유는 필수입니다");
-    }
-
-    // 사용 가능한 재고 확인
-    const availableQuantity = this.getAvailableQuantity();
-    if (quantity > availableQuantity) {
-      throw new Error("예약 수량이 사용 가능한 재고를 초과합니다");
-    }
-
-    // 예약 수량 증가
-    this.reservedQuantity += quantity;
-    this.updatedAt = new Date();
-  }
-
-  /**
-   * 예약 해제 처리
-   */
-  releaseReservation(quantity: number, reason: string): void {
-    // 입력 검증
-    if (quantity <= 0) {
-      throw new Error("해제 수량은 0보다 커야 합니다");
-    }
-    if (!reason || reason.trim().length === 0) {
-      throw new Error("해제 이유는 필수입니다");
-    }
-
-    // 예약 수량 확인
-    if (quantity > this.reservedQuantity) {
-      throw new Error("해제할 예약 수량이 현재 예약량을 초과합니다");
-    }
-
-    // 예약 수량 감소
-    this.reservedQuantity -= quantity;
-    this.updatedAt = new Date();
-  }
 
   /**
    * 부족 임계값 업데이트
@@ -368,7 +304,6 @@ export class Inventory {
       productId: this.productId,
       quantity: this.quantity,
       availableQuantity: this.getAvailableQuantity(),
-      reservedQuantity: this.reservedQuantity,
       status: this.getStatus(),
       location: this.location,
       isLowStock: this.isLowStock(),

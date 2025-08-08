@@ -1048,6 +1048,7 @@ export class ProductController {
         sortBy,
         sortOrder,
         isActive,
+        stockStatus,
       } = req.query;
 
       // 관리자용 요청 구성 - isActive 필터링 없이 모든 상품 조회
@@ -1056,6 +1057,10 @@ export class ProductController {
         limit: limit ? parseInt(limit as string, 10) : 20,
         // isActive는 명시적으로 설정하지 않음 (undefined 상태 유지) -> 모든 상품 조회
       };
+
+      if (stockStatus) {
+        getRequest.stockStatus = stockStatus as string;
+      }
 
       console.log('[ProductController] 관리자 모드 - 모든 상품 조회 (isActive 필터링 없음)');
 

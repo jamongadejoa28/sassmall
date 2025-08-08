@@ -9,7 +9,7 @@ import { GetOrderUseCase } from '../../usecases/GetOrderUseCase';
 import { UpdateOrderStatusUseCase } from '../../usecases/UpdateOrderStatusUseCase';
 import { CancelOrderUseCase } from '../../usecases/CancelOrderUseCase';
 import { GetOrdersAdminUseCase, GetOrdersAdminRequest } from '../../usecases/GetOrdersAdminUseCase';
-import { GetOrderStatsUseCase, GetOrderStatsRequest } from '../../usecases/GetOrderStatsUseCase';
+import { GetOrderStatsUseCase, GetOrderStatsRequest, GetRevenueChartRequest } from '../../usecases/GetOrderStatsUseCase';
 import { PaymentService } from '../../adapters/PaymentService';
 import { OrderStatus } from '../../entities/OrderStatus';
 
@@ -660,6 +660,50 @@ export class OrderController {
       res.status(500).json({
         success: false,
         message: '주문 통계 조회 중 서버 오류가 발생했습니다'
+      });
+    }
+  }
+
+  // 매출 차트 데이터 조회 (관리자용)
+  async getRevenueChart(req: Request, res: Response): Promise<void> {
+    try {
+      const period = req.query.period as 'week' | 'month' | '3months' | '6months' | 'year' || 'week';
+      const timezone = req.query.timezone as string;
+
+      // 기간 유효성 검증
+      const validPeriods = ['week', 'month', '3months', '6months', 'year'];
+      if (!validPeriods.includes(period)) {
+        res.status(400).json({
+          success: false,
+          message: '유효하지 않은 기간입니다. (week, month, 3months, 6months, year 중 선택)'
+        });
+        return;
+      }
+
+      const getRevenueChartRequest: GetRevenueChartRequest = {
+        period,
+        timezone
+      };
+
+      const result = await this.getOrderStatsUseCase.getRevenueChart(getRevenueChartRequest);
+
+      if (result.success) {
+        res.status(200).json({
+          success: true,
+          message: '매출 차트 데이터 조회가 성공적으로 완료되었습니다',
+          data: result.chartData
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.errorMessage || '매출 차트 데이터 조회에 실패했습니다'
+        });
+      }
+    } catch (error) {
+      console.error('매출 차트 데이터 조회 API 오류:', error);
+      res.status(500).json({
+        success: false,
+        message: '매출 차트 데이터 조회 중 서버 오류가 발생했습니다'
       });
     }
   }

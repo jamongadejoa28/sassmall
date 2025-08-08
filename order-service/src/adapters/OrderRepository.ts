@@ -77,4 +77,16 @@ export interface OrderRepository {
     statusCounts: Record<string, number>;
     averageOrderValue: number;
   }>;
+
+  // 매출 차트 데이터 조회
+  getRevenueChartData(period: 'week' | 'month' | '3months' | '6months' | 'year', timezone?: string): Promise<{
+    labels: string[];
+    revenues: number[];
+    orders: number[];
+    period: string;
+    totalRevenue: number;
+    totalOrders: number;
+    averageRevenue: number;
+    growthRate?: number;
+  }>;
 }

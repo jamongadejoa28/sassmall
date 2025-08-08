@@ -130,6 +130,8 @@ export interface GetUsersRequest {
   search?: string | undefined;
   role?: 'customer' | 'admin' | undefined;
   isActive?: boolean | undefined;
+  sortBy?: string | undefined;
+  sortOrder?: 'asc' | 'desc' | undefined;
 }
 
 export interface GetUsersResponse {
@@ -201,6 +203,8 @@ export interface UserRepository {
     search?: string | undefined;
     role?: 'customer' | 'admin' | undefined;
     isActive?: boolean | undefined;
+    sortBy?: string | undefined;
+    sortOrder?: 'asc' | 'desc' | undefined;
   }): Promise<{
     users: User[];
     total: number;

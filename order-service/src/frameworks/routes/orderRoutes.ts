@@ -47,6 +47,13 @@ export function createOrderRoutes(orderController: OrderController): Router {
     async (req, res) => await orderController.getOrderStats(req, res)
   );
 
+  // 매출 차트 데이터 조회 (관리자 전용) - /:orderId보다 먼저 정의 필수!
+  router.get('/revenue-chart',
+    adminMiddleware,
+    rateLimitMiddleware({ windowMs: 60 * 1000, max: 30 }), // 1분당 30회
+    async (req, res) => await orderController.getRevenueChart(req, res)
+  );
+
   // 주문 상세 조회
   router.get('/:orderId',
     rateLimitMiddleware({ windowMs: 60 * 1000, max: 100 }), // 1분당 100회
