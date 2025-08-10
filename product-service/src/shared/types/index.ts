@@ -1,101 +1,24 @@
+// shared/src/types/index.ts
+
 // ========================================
-// Shared Types - API 공통 타입 정의
-// src/shared/types/index.ts
+// 공통 응답 타입
 // ========================================
-
-/**
- * 표준 API 응답 형식
- */
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data?: T;
-  error?: {
-    code: string;
-    details?: any;
-  };
-  errors?: Array<{
-    field: string;
-    message: string;
-  }>;
-  timestamp: string;
-  requestId: string;
-  pagination?: PaginationMeta;
-}
-
-/**
- * 페이지네이션 메타 정보
- */
-export interface PaginationMeta {
-  currentPage: number;
-  perPage: number;
-  totalItems: number;
-  totalPages: number;
-  hasPreviousPage: boolean;
-  hasNextPage: boolean;
-}
-
-/**
- * 도메인 에러 클래스
- */
-export class DomainError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly statusCode: number = 400
-  ) {
-    super(message);
-    this.name = "DomainError";
-    Object.setPrototypeOf(this, DomainError.prototype);
-  }
-}
-
-/**
- * Repository 에러 클래스
- */
-export class RepositoryError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly originalError?: any
-  ) {
-    super(message);
-    this.name = "RepositoryError";
-    Object.setPrototypeOf(this, RepositoryError.prototype);
-  }
-}
-
-/**
- * 성공/실패 Result 패턴
- */
-export interface Result<T> {
+export type ApiResponse<T> = {
   success: boolean;
   data?: T;
-  error?: string | Error;
-}
+  message?: string;
+  error?: { code: string; details?: string; };
+  timestamp?: string; // Added timestamp property
+  requestId?: string;
+};
 
-/**
- * UseCase 기본 인터페이스
- */
-export interface UseCase<TRequest, TResponse> {
-  execute(request: TRequest): Promise<Result<TResponse>>;
-}
-
-/**
- * HTTP 헤더 상수
- */
-export const HTTP_HEADERS = {
-  REQUEST_ID: "x-request-id",
-  CORRELATION_ID: "x-correlation-id",
-  USER_ID: "x-user-id",
-} as const;
-
-/**
- * HTTP 상태 코드 상수
- */
+// ========================================
+// HTTP 상태 코드
+// ========================================
 export const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,
+  NO_CONTENT: 204,
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
@@ -104,15 +27,151 @@ export const HTTP_STATUS = {
   INTERNAL_SERVER_ERROR: 500,
 } as const;
 
-/**
- * 에러 코드 상수
- */
-export const ERROR_CODES = {
-  VALIDATION_ERROR: "VALIDATION_ERROR",
-  INTERNAL_ERROR: "INTERNAL_ERROR",
-  NOT_FOUND: "NOT_FOUND",
-  PRODUCT_NOT_FOUND: "PRODUCT_NOT_FOUND",
-  CATEGORY_NOT_FOUND: "CATEGORY_NOT_FOUND",
-  DUPLICATE_SKU: "DUPLICATE_SKU",
-  INVALID_INPUT: "INVALID_INPUT",
+// ========================================
+// 에러 코드
+// ========================================
+export enum ErrorCode {
+  VALIDATION_ERROR = "VALIDATION_ERROR",
+  AUTHENTICATION_ERROR = "AUTHENTICATION_ERROR",
+  AUTHORIZATION_ERROR = "AUTHORIZATION_ERROR",
+  NOT_FOUND_ERROR = "NOT_FOUND_ERROR",
+  CONFLICT_ERROR = "CONFLICT_ERROR",
+  INTERNAL_ERROR = "INTERNAL_ERROR",
+}
+
+// ========================================
+// 사용자 관련 타입
+// ========================================
+export enum UserRole {
+  ADMIN = "admin",
+  CUSTOMER = "customer",
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  avatar?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface JwtPayload {
+  userId: string;
+  email: string;
+  role: UserRole;
+  jti?: string;
+  iat?: number;
+  exp?: number;
+}
+
+// ========================================
+// 상품 관련 타입
+// ========================================
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  categoryId: string;
+  stock: number;
+  rating: number;
+  reviewCount: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ========================================
+// 주문 관련 타입
+// ========================================
+export enum OrderStatus {
+  PENDING = "pending",
+  PAID = "paid",
+  SHIPPED = "shipped",
+  DELIVERED = "delivered",
+  CANCELLED = "cancelled",
+}
+
+export interface OrderItem {
+  id: string;
+  productId: string;
+  quantity: number;
+  price: number;
+}
+
+export interface Order {
+  id: string;
+  userId: string;
+  items: OrderItem[];
+  totalAmount: number;
+  status: OrderStatus;
+  shippingAddress: Address;
+  paymentMethod: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Address {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+}
+
+// ========================================
+// 페이지네이션 타입
+// ========================================
+export interface PaginationParams {
+  page: number;
+  limit: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// ========================================
+// 환경설정 타입
+// ========================================
+export interface JwtConfig {
+  secret: string;
+  refreshSecret: string;
+  expiresIn: string;
+  refreshExpiresIn: string;
+}
+
+// ========================================
+// HTTP 헤더 상수
+// ========================================
+export const HTTP_HEADERS = {
+  AUTHORIZATION: 'Authorization',
+  CONTENT_TYPE: 'Content-Type',
+  ACCEPT: 'Accept',
+  USER_AGENT: 'User-Agent',
+  REQUEST_ID: 'X-Request-ID',
 } as const;

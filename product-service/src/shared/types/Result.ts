@@ -1,50 +1,40 @@
-// src/shared/types/Result.ts
-
 export class Result<T> {
-  public readonly success: boolean;
-  public readonly data?: T;
-  public readonly error?: Error;
+  public readonly isSuccess: boolean;
+  private readonly _value?: T;
+  private readonly _error?: string;
 
-  private constructor(success: boolean, data?: T, error?: Error) {
-    this.success = success;
-
-    // exactOptionalPropertyTypes: true 대응
-    // 성공 시에만 data 할당, 실패 시에만 error 할당
-    if (success && data !== undefined) {
-      (this as any).data = data;
+  private constructor(isSuccess: boolean, value?: T, error?: string) {
+    if (isSuccess && error) {
+      throw new Error("Cannot create a successful result with an error message.");
     }
-    if (!success && error !== undefined) {
-      (this as any).error = error;
+    if (!isSuccess && !error) {
+      throw new Error("Cannot create a failed result without an error message.");
     }
+
+    this.isSuccess = isSuccess;
+    this._value = value;
+    this._error = error;
   }
 
-  static ok<T>(data?: T): Result<T> {
-    return new Result<T>(true, data);
+  public static ok<U>(value?: U): Result<U> {
+    return new Result<U>(true, value);
   }
 
-  static fail<T>(error: Error): Result<T> {
-    return new Result<T>(false, undefined, error);
+  public static fail<U>(error: string): Result<U> {
+    return new Result<U>(false, undefined, error);
   }
 
-  isFailure(): boolean {
-    return !this.success;
-  }
-
-  isSuccess(): boolean {
-    return this.success;
-  }
-
-  getValue(): T {
-    if (!this.success || this.data === undefined) {
-      throw new Error("Cannot get value from failed result");
+  public getValue(): T {
+    if (!this.isSuccess) {
+      throw new Error("Cannot get value from a failed result.");
     }
-    return this.data;
+    return this._value!;
   }
 
-  getError(): Error {
-    if (this.success || this.error === undefined) {
-      throw new Error("Cannot get error from successful result");
+  public getError(): string {
+    if (this.isSuccess) {
+      throw new Error("Cannot get error from a successful result.");
     }
-    return this.error;
+    return this._error!;
   }
 }

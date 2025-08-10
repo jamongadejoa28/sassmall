@@ -6,24 +6,9 @@
 import { Product } from "../../entities/Product";
 import { Category } from "../../entities/Category";
 import { Inventory } from "../../entities/Inventory";
+import { Result } from "../../shared/types/Result";
 
-// ===== Result 패턴 - 성공/실패를 명확히 구분 =====
-export class Result<T> {
-  private constructor(
-    public readonly success: boolean,
-    public readonly data?: T,
-    public readonly error?: string
-  ) {}
 
-  static ok<T>(data: T): Result<T> {
-    return new Result(true, data);
-  }
-
-  static fail<T>(error: string | Error): Result<T> {
-    const errorMessage = error instanceof Error ? error.message : error;
-    return new Result<T>(false, undefined, errorMessage);
-  }
-}
 
 // ===== 상품 생성 관련 타입 =====
 export interface CreateProductRequest {

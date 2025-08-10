@@ -63,21 +63,21 @@ export class CreateProductQnAUseCase {
     try {
       // 1. 입력 데이터 기본 검증
       if (!request.productId || request.productId.trim().length === 0) {
-        return Result.fail(new Error("상품 ID는 필수입니다."));
+        return Result.fail("상품 ID는 필수입니다.");
       }
 
       if (!request.userId || request.userId.trim().length === 0) {
-        return Result.fail(new Error("사용자 ID는 필수입니다."));
+        return Result.fail("사용자 ID는 필수입니다.");
       }
 
       if (!request.userEmail || request.userEmail.trim().length === 0) {
-        return Result.fail(new Error("사용자 이메일은 필수입니다."));
+        return Result.fail("사용자 이메일은 필수입니다.");
       }
 
       // 2. 상품 존재 여부 확인
       const product = await this.productRepository.findById(request.productId);
       if (!product) {
-        return Result.fail(new Error("상품을 찾을 수 없습니다."));
+        return Result.fail("상품을 찾을 수 없습니다.");
       }
 
       // 3. ProductQnA 도메인 객체 생성 (도메인에서 상세 검증)
@@ -132,7 +132,7 @@ export class CreateProductQnAUseCase {
       return Result.ok(response);
     } catch (error: any) {
       console.error("[CreateProductQnAUseCase] 실행 오류:", error);
-      return Result.fail(new Error("상품 Q&A 생성 중 오류가 발생했습니다."));
+      return Result.fail("상품 Q&A 생성 중 오류가 발생했습니다.");
     }
   }
 }

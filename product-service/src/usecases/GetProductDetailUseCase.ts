@@ -64,7 +64,7 @@ export class GetProductDetailUseCase {
       // 1. 입력값 유효성 검증
       const validationError = this.validateInput(productId);
       if (validationError) {
-        return Result.fail(validationError);
+        return Result.fail(validationError.message);
       }
 
       // 2. 캐시에서 먼저 조회
@@ -79,13 +79,13 @@ export class GetProductDetailUseCase {
       // 3. Repository에서 데이터 조회
       const product = await this.productRepository.findById(productId);
       if (!product) {
-        return Result.fail(DomainError.productNotFound());
+        return Result.fail(DomainError.productNotFound().message);
       }
 
       // 4. 비즈니스 규칙 검증
       const businessError = this.validateBusinessRules(product);
       if (businessError) {
-        return Result.fail(businessError);
+        return Result.fail(businessError.message);
       }
 
       // 5. 카테고리 정보 조회 및 검증
@@ -93,11 +93,11 @@ export class GetProductDetailUseCase {
         product.getCategoryId()
       );
       if (!category) {
-        return Result.fail(DomainError.categoryNotFound());
+        return Result.fail(DomainError.categoryNotFound().message);
       }
 
       if (!category.isActive()) {
-        return Result.fail(DomainError.categoryInactive());
+        return Result.fail(DomainError.categoryInactive().message);
       }
 
       // 6. 재고 정보 조회 (없어도 진행)
@@ -113,10 +113,10 @@ export class GetProductDetailUseCase {
       return Result.ok(responseData);
     } catch (error) {
       if (error instanceof Error) {
-        return Result.fail(error);
+        return Result.fail(error.message);
       }
       return Result.fail(
-        new Error("상품 상세 조회 중 예상치 못한 오류가 발생했습니다")
+        "상품 상세 조회 중 예상치 못한 오류가 발생했습니다"
       );
     }
   }

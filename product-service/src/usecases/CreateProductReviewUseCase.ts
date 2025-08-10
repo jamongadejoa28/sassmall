@@ -59,17 +59,17 @@ export class CreateProductReviewUseCase {
     try {
       // 1. 입력 데이터 기본 검증
       if (!request.productId || request.productId.trim().length === 0) {
-        return Result.fail(new Error("상품 ID는 필수입니다."));
+        return Result.fail("상품 ID는 필수입니다.");
       }
 
       if (!request.userName || request.userName.trim().length === 0) {
-        return Result.fail(new Error("사용자명은 필수입니다."));
+        return Result.fail("사용자명은 필수입니다.");
       }
 
       // 2. 상품 존재 여부 확인
       const product = await this.productRepository.findById(request.productId);
       if (!product) {
-        return Result.fail(new Error("상품을 찾을 수 없습니다."));
+        return Result.fail("상품을 찾을 수 없습니다.");
       }
 
       // 3. ProductReview 도메인 객체 생성 (도메인에서 상세 검증)
@@ -85,7 +85,7 @@ export class CreateProductReviewUseCase {
       try {
         review = ProductReview.create(createData);
       } catch (domainError: any) {
-        return Result.fail(new Error(domainError.message));
+        return Result.fail(domainError.message);
       }
 
       // 4. 리뷰 저장
@@ -112,7 +112,7 @@ export class CreateProductReviewUseCase {
       return Result.ok(response);
     } catch (error: any) {
       console.error("[CreateProductReviewUseCase] 실행 오류:", error);
-      return Result.fail(new Error("상품평 생성 중 오류가 발생했습니다."));
+      return Result.fail("상품평 생성 중 오류가 발생했습니다.");
     }
   }
 }

@@ -9,6 +9,12 @@ import { ROUTES, ADMIN_ROUTES } from '../../shared/constants/routes';
 const ProductsPage = React.lazy(() => import('../ui/pages/ProductsPage'));
 const LoginPage = React.lazy(() => import('../ui/pages/LoginPage'));
 const RegisterPage = React.lazy(() => import('../ui/pages/RegisterPage'));
+const EmailVerificationPage = React.lazy(
+  () => import('../ui/pages/EmailVerificationPage')
+);
+const EmailVerificationInstruction = React.lazy(
+  () => import('../ui/pages/EmailVerificationInstruction')
+);
 
 // Development only
 const AuthTestPage = React.lazy(() => import('../ui/pages/AuthTestPage'));
@@ -185,6 +191,14 @@ export const AppRouter: React.FC = () => {
                     <Route path={ROUTES.HOME} element={<ProductsPage />} />
                     <Route path={ROUTES.LOGIN} element={<LoginPage />} />
                     <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+                    <Route
+                      path={ROUTES.VERIFY_EMAIL}
+                      element={<EmailVerificationPage />}
+                    />
+                    <Route
+                      path={ROUTES.EMAIL_INSTRUCTION}
+                      element={<EmailVerificationInstruction />}
+                    />
                     <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
                     <Route
                       path={ROUTES.PRODUCT_DETAIL}

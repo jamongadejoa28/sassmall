@@ -159,8 +159,18 @@ const RegisterPage: React.FC = () => {
           icon: '🎉',
         });
 
-        // 로그인 페이지로 이동
-        navigate(ROUTES.LOGIN);
+        // 이메일 인증 안내 페이지로 이동 (토큰과 이메일 포함)
+        const token = result.data?.verificationToken;
+        const email = result.data?.user?.email;
+
+        if (token && email) {
+          navigate(
+            `${ROUTES.EMAIL_INSTRUCTION}?token=${token}&email=${encodeURIComponent(email)}`
+          );
+        } else {
+          // 토큰이 없으면 로그인 페이지로
+          navigate(ROUTES.LOGIN);
+        }
       } else {
         // 서버에서 반환된 에러 메시지 표시
         if (result.error?.includes('이메일')) {

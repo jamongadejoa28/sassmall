@@ -5,6 +5,11 @@
 
 import { Order, CreateOrderData } from '../entities/Order';
 import { OrderItem } from '../entities/OrderItem';
+import { 
+  EventPublisher as KafkaEventPublisher,
+  EventFactory,
+  OrderCreatedEvent
+} from '../shared';
 
 export interface CartItem {
   productId: string;
@@ -71,11 +76,17 @@ export interface UserService {
 }
 
 export class CreateOrderUseCase {
+  private readonly kafkaEventPublisher: KafkaEventPublisher;
+  private readonly eventFactory: EventFactory;
+
   constructor(
     private orderRepository: OrderRepository,
     private productService: ProductService,
     private userService: UserService
-  ) {}
+  ) {
+    this.kafkaEventPublisher = new KafkaEventPublisher(['kafka:29092'], 'order-service');
+    this.eventFactory = new EventFactory('order-service', '1.0.0');
+  }
 
   async execute(request: CreateOrderRequest): Promise<CreateOrderResponse> {
     try {
@@ -139,6 +150,9 @@ export class CreateOrderUseCase {
 
         // 7. 주문 저장
         const savedOrder = await this.orderRepository.save(order);
+
+        // 8. 주문 생성 이벤트 발행
+        await this.publishOrderCreatedEvent(savedOrder, request.userId);
 
         return {
           success: true,
@@ -454,6 +468,103 @@ export class CreateOrderUseCase {
     } catch (error) {
       console.error('주문 중복 확인 실패:', error);
       return false;
+    }
+  }
+
+  // ========================================
+  // Kafka 이벤트 발행
+  // ========================================
+
+  /**
+   * 주문 생성 이벤트 발행
+   */
+  private async publishOrderCreatedEvent(order: Order, userId: string): Promise<void> {
+    try {
+      // Kafka EventPublisher 연결 확인
+      if (!(await this.kafkaEventPublisher.isConnected())) {
+        await this.kafkaEventPublisher.connect();
+      }
+
+      // OrderCreatedEvent 생성
+      const orderCreatedEvent = this.eventFactory.createOrderCreatedEvent(
+        order.id!,
+        {
+          orderNumber: order.orderNumber!,
+          userId: userId,
+          totalAmount: order.totalAmount,
+          shippingAmount: order.shippingFee,
+          taxAmount: 0,
+          discountAmount: 0,
+          status: order.status,
+          items: order.items.map(item => ({
+            productId: item.productId,
+            sku: item.sku || `SKU-${item.productId.substring(0, 8)}`,
+            productName: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.productPrice,
+            totalPrice: item.productPrice * item.quantity,
+          })),
+          shippingAddress: {
+            name: order.shippingAddress.recipientName,
+            phone: order.shippingAddress.recipientPhone,
+            address: `${order.shippingAddress.address} ${order.shippingAddress.detailAddress || ''}`.trim(),
+            city: order.shippingAddress.city || '서울',
+            zipCode: order.shippingAddress.postalCode,
+          },
+          paymentMethod: order.paymentMethod,
+        }
+      );
+
+      // Kafka 이벤트 발행
+      await this.kafkaEventPublisher.publish(orderCreatedEvent);
+
+      console.log('✅ [OrderService] 주문 생성 이벤트 발행 완료:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        totalAmount: order.totalAmount,
+      });
+
+    } catch (error) {
+      // 이벤트 발행 실패는 로그만 남기고 무시 (비즈니스 로직에 영향 X)
+      console.error('❌ [OrderService] 주문 생성 이벤트 발행 실패:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      // Dead Letter Queue로 실패한 이벤트 전송 시도
+      if (error instanceof Error) {
+        const failedOrderEvent = this.eventFactory.createOrderCreatedEvent(
+          order.id!,
+          {
+            orderNumber: order.orderNumber!,
+            userId: userId,
+            totalAmount: order.totalAmount,
+            shippingAmount: order.shippingFee,
+            taxAmount: 0,
+            discountAmount: 0,
+            status: order.status,
+            items: order.items.map(item => ({
+              productId: item.productId,
+              sku: item.sku || `SKU-${item.productId.substring(0, 8)}`,
+              productName: item.productName,
+              quantity: item.quantity,
+              unitPrice: item.productPrice,
+              totalPrice: item.productPrice * item.quantity,
+            })),
+            shippingAddress: {
+              name: order.shippingAddress.recipientName,
+              phone: order.shippingAddress.recipientPhone,
+              address: `${order.shippingAddress.address} ${order.shippingAddress.detailAddress || ''}`.trim(),
+              city: order.shippingAddress.city || '서울',
+              zipCode: order.shippingAddress.postalCode,
+            },
+            paymentMethod: order.paymentMethod,
+              }
+        );
+        
+        await this.kafkaEventPublisher.sendToDeadLetterQueue(failedOrderEvent, error, 0);
+      }
     }
   }
 }

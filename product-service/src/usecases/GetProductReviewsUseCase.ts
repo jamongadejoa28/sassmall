@@ -71,13 +71,13 @@ export class GetProductReviewsUseCase {
     try {
       // 1. 입력 데이터 검증
       if (!request.productId || request.productId.trim().length === 0) {
-        return Result.fail(new Error("상품 ID는 필수입니다."));
+        return Result.fail("상품 ID는 필수입니다.");
       }
 
       // 2. 상품 존재 여부 확인
       const product = await this.productRepository.findById(request.productId);
       if (!product) {
-        return Result.fail(new Error("상품을 찾을 수 없습니다."));
+        return Result.fail("상품을 찾을 수 없습니다.");
       }
 
       // 3. 페이지네이션 설정
@@ -135,7 +135,7 @@ export class GetProductReviewsUseCase {
       return Result.ok(response);
     } catch (error: any) {
       console.error("[GetProductReviewsUseCase] 실행 오류:", error);
-      return Result.fail(new Error("상품평 조회 중 오류가 발생했습니다."));
+      return Result.fail("상품평 조회 중 오류가 발생했습니다.");
     }
   }
 }

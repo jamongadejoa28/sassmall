@@ -38,6 +38,7 @@ export interface RegisterUserResponse {
   };
   emailSent: boolean;
   emailError?: string | undefined; // undefined 명시적 허용
+  verificationToken?: string; // 이메일 인증 토큰
 }
 
 // ===== 로그인 관련 타입 =====

@@ -56,10 +56,10 @@ export class CategoryController {
    */
   async getCategoryList(req: Request, res: Response): Promise<void> {
     try {
-      const request: GetCategoryListRequest = {
+      const request = {
         isActive: req.query.isActive === 'false' ? false : true,
-        sortBy: req.query.sortBy as 'sort_order' | 'name' | 'createdAt' || 'sort_order',
-        sortOrder: req.query.sortOrder as 'asc' | 'desc' || 'asc',
+        sortBy: (req.query.sortBy as 'sort_order' | 'name' | 'createdAt') || 'sort_order',
+        sortOrder: (req.query.sortOrder as 'asc' | 'desc') || 'asc',
       };
 
       const result = await this.getCategoryListUseCase.execute(request);

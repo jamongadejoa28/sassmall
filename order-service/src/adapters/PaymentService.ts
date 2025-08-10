@@ -9,6 +9,11 @@ import { PaymentRepository } from './PaymentRepository';
 import { UpdateOrderStatusUseCase } from '../usecases/UpdateOrderStatusUseCase';
 import { CreateOrderUseCase, CreateOrderRequest } from '../usecases/CreateOrderUseCase';
 import { OrderStatus } from '../entities/OrderStatus';
+import { 
+  EventPublisher as KafkaEventPublisher,
+  EventFactory,
+  OrderPaymentCompletedEvent
+} from '../shared';
 
 export interface ProcessPaymentRequest {
   orderId: string;
@@ -32,13 +37,18 @@ export interface ApprovePaymentRequest {
 
 export class PaymentService {
   private pendingApprovals: Map<string, Promise<PaymentResult>> = new Map();
+  private readonly kafkaEventPublisher: KafkaEventPublisher;
+  private readonly eventFactory: EventFactory;
 
   constructor(
     private paymentAdapter: PaymentAdapter,
     private paymentRepository: PaymentRepository,
     private updateOrderStatusUseCase: UpdateOrderStatusUseCase,
     private createOrderUseCase: CreateOrderUseCase
-  ) {}
+  ) {
+    this.kafkaEventPublisher = new KafkaEventPublisher(['kafka:29092'], 'order-service');
+    this.eventFactory = new EventFactory('order-service', '1.0.0');
+  }
 
   async processPayment(request: ProcessPaymentRequest): Promise<PaymentResult> {
     try {
@@ -244,6 +254,9 @@ export class PaymentService {
             // 에러를 throw하지 않고 결제 성공 처리 계속 진행
           }
 
+          // 결제 완료 이벤트 발행
+          await this.publishOrderPaymentCompletedEvent(existingPayment, request);
+
           return {
             success: true,
             paymentKey: request.paymentKey,
@@ -380,6 +393,77 @@ export class PaymentService {
       };
     } catch (error) {
       throw new Error('결제 통계를 조회하는 중 오류가 발생했습니다');
+    }
+  }
+
+  // ========================================
+  // Kafka 이벤트 발행
+  // ========================================
+
+  /**
+   * 주문 결제 완료 이벤트 발행
+   */
+  private async publishOrderPaymentCompletedEvent(
+    payment: Payment,
+    request: ApprovePaymentRequest
+  ): Promise<void> {
+    try {
+      // Kafka EventPublisher 연결 확인
+      if (!(await this.kafkaEventPublisher.isConnected())) {
+        await this.kafkaEventPublisher.connect();
+      }
+
+      // OrderPaymentCompletedEvent 생성
+      const orderPaymentCompletedEvent = this.eventFactory.createOrderPaymentCompletedEvent(
+        request.orderId,
+        {
+          orderNumber: `ORDER-${request.orderId.substring(0, 8)}`, // Mock 주문번호
+          userId: request.userId,
+          totalAmount: payment.amount,
+          paymentId: payment.paymentId!,
+          paymentMethod: payment.paymentMethod,
+          paymentProvider: 'TOSSPAYMENTS',
+          transactionId: request.paymentKey,
+          paidAt: (payment.approvedAt || new Date()).toISOString(),
+        }
+      );
+
+      // Kafka 이벤트 발행
+      await this.kafkaEventPublisher.publish(orderPaymentCompletedEvent);
+
+      console.log('✅ [OrderService] 결제 완료 이벤트 발행 완료:', {
+        orderId: request.orderId,
+        paymentId: payment.paymentId,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+      });
+
+    } catch (error) {
+      // 이벤트 발행 실패는 로그만 남기고 무시 (비즈니스 로직에 영향 X)
+      console.error('❌ [OrderService] 결제 완료 이벤트 발행 실패:', {
+        orderId: request.orderId,
+        paymentId: payment.paymentId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      // Dead Letter Queue로 실패한 이벤트 전송 시도
+      if (error instanceof Error) {
+        const failedPaymentEvent = this.eventFactory.createOrderPaymentCompletedEvent(
+          request.orderId,
+          {
+            orderNumber: `ORDER-${request.orderId.substring(0, 8)}`,
+            userId: request.userId,
+            totalAmount: payment.amount,
+            paymentId: payment.paymentId!,
+            paymentMethod: payment.paymentMethod,
+            paymentProvider: 'TOSSPAYMENTS',
+            transactionId: request.paymentKey,
+            paidAt: (payment.approvedAt || new Date()).toISOString(),
+          }
+        );
+        
+        await this.kafkaEventPublisher.sendToDeadLetterQueue(failedPaymentEvent, error, 0);
+      }
     }
   }
 }

@@ -4,7 +4,7 @@
 // src/frameworks/ui/pages/Admin/AdminDashboard.tsx
 // ========================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   AdminApiAdapter,
   DashboardStats,
@@ -30,14 +30,10 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const adminApiAdapter = new AdminApiAdapter();
+  const adminApiAdapter = useMemo(() => new AdminApiAdapter(), []);
 
   // 대시보드 데이터 로드
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -50,7 +46,11 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminApiAdapter]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   // 통계 카드 데이터 구조 (실제 데이터 연동됨)
   const statsCards = [

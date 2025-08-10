@@ -23,7 +23,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    "exactOptionalPropertyTypes": false,
     "resolveJsonModule": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -36,12 +36,12 @@
       "@/frameworks/*": ["src/frameworks/*"],
       "@/types/*": ["src/types/*"],
       "@/utils/*": ["src/utils/*"],
-      "@/config/*": ["src/config/*"]
+      "@/config/*": ["src/config/*"],
     },
     "types": ["node", "jest"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "coverage"],
+  "exclude": ["node_modules", "dist", "coverage", "../shared/**/*"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"

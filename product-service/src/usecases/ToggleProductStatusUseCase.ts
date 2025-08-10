@@ -53,13 +53,13 @@ export class ToggleProductStatusUseCase {
 
       // 상품 ID 유효성 검증
       if (!request.productId || request.productId.trim() === '') {
-        return Result.fail(new DomainError('상품 ID가 제공되지 않았습니다', 'INVALID_INPUT'));
+        return Result.fail('상품 ID가 제공되지 않았습니다');
       }
 
       // 상품 존재 여부 확인
       const existingProduct = await this.productRepository.findById(request.productId);
       if (!existingProduct) {
-        return Result.fail(new DomainError('상품을 찾을 수 없습니다', 'PRODUCT_NOT_FOUND', 404));
+        return Result.fail('상품을 찾을 수 없습니다');
       }
 
       // 현재 상태와 요청된 상태가 같은지 확인
@@ -100,15 +100,12 @@ export class ToggleProductStatusUseCase {
       console.error('[ToggleProductStatusUseCase] 상품 상태 토글 실패:', error);
       
       if (error instanceof DomainError) {
-        return Result.fail(error);
+        return Result.fail(error.message);
       }
 
       const errorMessage = error instanceof Error ? error.message : "알 수 없는 오류";
       return Result.fail(
-        new DomainError(
-          `상품 상태 변경 중 오류가 발생했습니다: ${errorMessage}`,
-          "INTERNAL_ERROR"
-        )
+        `상품 상태 변경 중 오류가 발생했습니다: ${errorMessage}`
       );
     }
   }

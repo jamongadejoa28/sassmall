@@ -182,7 +182,9 @@ export const shuffleArray = <T>(array: T[]): T[] => {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    const temp = shuffled[i];
+    shuffled[i] = shuffled[j];
+    shuffled[j] = temp;
   }
   return shuffled;
 };
@@ -239,8 +241,15 @@ export const createLogger = (serviceName: string): Logger => {
 // ========================================
 
 export const maskEmail = (email: string): string => {
-  const [username, domain] = email.split("@");
-  const maskedUsername = username.slice(0, 2) + "*".repeat(username.length - 2);
+  const parts = email.split("@");
+  if (parts.length !== 2) {
+    return email; // Or throw an error, or handle as invalid email
+  }
+  const [username, domain] = parts;
+  if (username === undefined || domain === undefined) {
+    return email; // Should not happen if parts.length is 2, but for safety
+  }
+  const maskedUsername = username!.slice(0, 2) + "*".repeat(username!.length - 2);
   return `${maskedUsername}@${domain}`;
 };
 

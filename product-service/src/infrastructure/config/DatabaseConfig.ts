@@ -67,7 +67,7 @@ export class DatabaseConfig {
       return this.dataSource;
     } catch (error) {
       logger.error("PostgreSQL 연결 실패", { error: error as Error });
-      throw new DatabaseError("데이터베이스 연결에 실패했습니다", error);
+      throw new DatabaseError("데이터베이스 연결에 실패했습니다");
     }
   }
 
@@ -96,7 +96,7 @@ export class DatabaseConfig {
         logger.error("PostgreSQL 연결 종료 실패", { error: error as Error });
         // 강제로 null로 설정하여 메모리 누수 방지
         this.dataSource = null;
-        throw new DatabaseError("데이터베이스 연결 종료에 실패했습니다", error);
+        throw new DatabaseError("데이터베이스 연결 종료에 실패했습니다");
       }
     }
   }

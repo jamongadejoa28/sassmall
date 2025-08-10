@@ -568,4 +568,51 @@ export class UserController {
       next(error);
     }
   };
+
+  /**
+   * 이메일 인증
+   * GET /api/users/verify-email?token=xxx
+   */
+  public verifyEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== 'string') {
+        res.status(400).json({
+          success: false,
+          message: '인증 토큰이 필요합니다.',
+          error: 'TOKEN_REQUIRED',
+          data: null,
+        });
+        return;
+      }
+
+      // Mock 인증 처리 - 실제로는 데이터베이스에서 토큰 검증 및 사용자 상태 업데이트
+      // TODO: 실제 이메일 인증 UseCase 구현
+      
+      // 간단한 토큰 검증 (실제로는 데이터베이스에서 확인)
+      if (token.length < 10) {
+        res.status(400).json({
+          success: false,
+          message: '유효하지 않은 인증 토큰입니다.',
+          error: 'INVALID_TOKEN',
+          data: null,
+        });
+        return;
+      }
+
+      // Mock 성공 응답
+      res.status(200).json({
+        success: true,
+        message: '이메일 인증이 성공적으로 완료되었습니다.',
+        data: {
+          verified: true,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  };
 }

@@ -4,7 +4,7 @@
 // src/frameworks/ui/components/Admin/RevenueChart.tsx
 // ========================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -61,7 +61,7 @@ const RevenueChart: React.FC = () => {
     'week' | 'month' | '3months' | '6months' | 'year'
   >('week');
 
-  const adminApiAdapter = new AdminApiAdapter();
+  const adminApiAdapter = useMemo(() => new AdminApiAdapter(), []);
 
   // 기간 옵션
   const periodOptions = [
@@ -73,26 +73,29 @@ const RevenueChart: React.FC = () => {
   ] as const;
 
   // 차트 데이터 로드
-  const loadChartData = async (period: typeof selectedPeriod) => {
-    try {
-      setLoading(true);
-      setError(null);
+  const loadChartData = useCallback(
+    async (period: typeof selectedPeriod) => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const data = await adminApiAdapter.getRevenueChart(period);
-      setChartData(data);
-    } catch (error: any) {
-      console.error('매출 차트 데이터 로드 오류:', error);
-      setError(error.message);
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const data = await adminApiAdapter.getRevenueChart(period);
+        setChartData(data);
+      } catch (error: any) {
+        console.error('매출 차트 데이터 로드 오류:', error);
+        setError(error.message);
+        toast.error(error.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [adminApiAdapter]
+  );
 
   // 컴포넌트 마운트 및 기간 변경 시 데이터 로드
   useEffect(() => {
     loadChartData(selectedPeriod);
-  }, [selectedPeriod]);
+  }, [selectedPeriod, loadChartData]);
 
   // 기간 변경 핸들러
   const handlePeriodChange = (period: typeof selectedPeriod) => {

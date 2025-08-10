@@ -80,11 +80,11 @@ export class GetAllProductQnAForAdminUseCase {
       const limit = Math.min(100, Math.max(1, request.limit || 20));
 
       if (page < 1) {
-        return Result.fail(new Error("페이지 번호는 1 이상이어야 합니다."));
+        return Result.fail("페이지 번호는 1 이상이어야 합니다.");
       }
 
       if (limit < 1 || limit > 100) {
-        return Result.fail(new Error("페이지당 항목 수는 1-100 사이여야 합니다."));
+        return Result.fail("페이지당 항목 수는 1-100 사이여야 합니다.");
       }
 
       // 2. 검색 옵션 구성
@@ -148,7 +148,7 @@ export class GetAllProductQnAForAdminUseCase {
       return Result.ok(response);
     } catch (error: any) {
       console.error("[GetAllProductQnAForAdminUseCase] 실행 오류:", error);
-      return Result.fail(new Error("관리자 Q&A 목록 조회 중 오류가 발생했습니다."));
+      return Result.fail("관리자 Q&A 목록 조회 중 오류가 발생했습니다.");
     }
   }
 }

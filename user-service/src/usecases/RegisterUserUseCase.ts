@@ -11,6 +11,8 @@ import {
   ExternalServiceError,
 } from './types/index';
 import { v4 as uuidv4 } from 'uuid';
+import { EventPublisher } from '../infrastructure/events/EventPublisher';
+import { EventFactory } from '../infrastructure/events/EventFactory';
 
 /**
  * RegisterUserUseCase - 사용자 등록 Use Case
@@ -19,15 +21,23 @@ import { v4 as uuidv4 } from 'uuid';
  * 1. 이메일 중복 확인
  * 2. 사용자 Entity 생성 및 저장
  * 3. 이메일 인증 메일 발송
- * 4. 적절한 에러 처리
+ * 4. 사용자 등록 이벤트 발행 (Kafka)
+ * 5. 적절한 에러 처리
  */
 export class RegisterUserUseCase
   implements UseCase<RegisterUserRequest, RegisterUserResponse>
 {
+  private readonly eventPublisher: EventPublisher;
+  private readonly eventFactory: EventFactory;
+
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly emailService: EmailService
-  ) {}
+    private readonly emailService: EmailService,
+    eventPublisher?: EventPublisher
+  ) {
+    this.eventPublisher = eventPublisher || new EventPublisher(['localhost:9092'], 'user-service');
+    this.eventFactory = new EventFactory('user-service', '1.0.0');
+  }
 
   async execute(
     request: RegisterUserRequest
@@ -42,10 +52,13 @@ export class RegisterUserUseCase
       // 3. 사용자 저장
       const savedUser = await this.saveUser(user);
 
-      // 4. 이메일 인증 메일 발송 (실패해도 사용자 생성은 성공)
+      // 4. 사용자 등록 이벤트 발행 (비동기)
+      await this.publishUserRegisteredEvent(savedUser, 'web');
+
+      // 5. 이메일 인증 메일 발송 (실패해도 사용자 생성은 성공)
       const emailResult = await this.sendVerificationEmail(savedUser);
 
-      // 5. 성공 응답 생성
+      // 6. 성공 응답 생성
       const userData = {
         id: savedUser.id!,
         name: savedUser.name,
@@ -63,6 +76,11 @@ export class RegisterUserUseCase
       // emailError가 있을 때만 추가 (조건부 할당)
       if (emailResult.error) {
         responseData.emailError = emailResult.error;
+      }
+
+      // 토큰이 있을 때만 추가 (조건부 할당)
+      if (emailResult.token) {
+        responseData.verificationToken = emailResult.token;
       }
 
       return {
@@ -142,11 +160,75 @@ export class RegisterUserUseCase
   }
 
   /**
+   * 사용자 등록 이벤트 발행
+   */
+  private async publishUserRegisteredEvent(
+    user: User, 
+    registrationSource: 'web' | 'mobile' | 'admin' = 'web'
+  ): Promise<void> {
+    try {
+      // EventPublisher가 연결되어 있지 않으면 연결
+      if (!(await this.eventPublisher.isConnected())) {
+        await this.eventPublisher.connect();
+      }
+
+      // UserRegisteredEvent 생성
+      const userRegisteredEvent = this.eventFactory.createUserRegisteredEvent(
+        user.id!,
+        {
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          isActive: user.isActive,
+          registrationSource,
+        }
+      );
+
+      // Kafka Producer 연결 및 이벤트 발행
+      try {
+        await this.eventPublisher.connect();
+        await this.eventPublisher.publish(userRegisteredEvent);
+      } catch (kafkaError) {
+        console.warn('⚠️ [UserService] Kafka 연결 실패, 이벤트 발행 건너뛰기:', kafkaError);
+      }
+
+      console.log(`✅ [UserService] UserRegisteredEvent 발행 완료:`, {
+        userId: user.id,
+        email: user.email,
+        eventId: userRegisteredEvent.eventId,
+      });
+
+    } catch (error) {
+      // 이벤트 발행 실패는 전체 등록 프로세스를 실패시키지 않음
+      console.error(`❌ [UserService] UserRegisteredEvent 발행 실패:`, {
+        userId: user.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      // 실패한 이벤트를 Dead Letter Queue로 전송 시도
+      if (error instanceof Error && user.id) {
+        const failedEvent = this.eventFactory.createUserRegisteredEvent(
+          user.id,
+          {
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            isActive: user.isActive,
+            registrationSource,
+          }
+        );
+        
+        await this.eventPublisher.sendToDeadLetterQueue(failedEvent, error, 0);
+      }
+    }
+  }
+
+  /**
    * 이메일 인증 메일 발송 (실패해도 전체 프로세스는 실패하지 않음)
    */
   private async sendVerificationEmail(
     user: User
-  ): Promise<{ sent: boolean; error?: string }> {
+  ): Promise<{ sent: boolean; error?: string; token?: string }> {
     try {
       const verificationToken = uuidv4();
       const emailSent = await this.emailService.sendVerificationEmail(
@@ -154,7 +236,10 @@ export class RegisterUserUseCase
         verificationToken
       );
 
-      return { sent: emailSent };
+      return { 
+        sent: emailSent,
+        token: verificationToken  // 토큰을 응답에 포함
+      };
     } catch (error) {
       // 이메일 발송 실패는 전체 등록 프로세스를 실패시키지 않음
       const errorMessage =

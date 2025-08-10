@@ -10,6 +10,7 @@ export interface CreateOrderItemData {
   quantity: number;
   productImageUrl?: string;
   productOptions?: Record<string, any>;
+  sku?: string;
 }
 
 export class OrderItem {
@@ -22,6 +23,7 @@ export class OrderItem {
   public totalPrice: number;
   public productImageUrl?: string;
   public productOptions?: Record<string, any>;
+  public sku?: string;
   public createdAt: Date;
   public updatedAt: Date;
 
@@ -35,6 +37,7 @@ export class OrderItem {
     this.totalPrice = this.calculateTotalPrice();
     this.productImageUrl = data.productImageUrl;
     this.productOptions = data.productOptions;
+    this.sku = data.sku;
 
     const now = new Date();
     this.createdAt = now;

@@ -7,10 +7,9 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
 // 사용자 정보 인터페이스
-interface User {
+interface AuthenticatedUser {
   id: string;
   email: string;
-  name: string;
   role: 'customer' | 'admin';
   isActive: boolean;
 }
@@ -19,7 +18,7 @@ interface User {
 declare global {
   namespace Express {
     interface Request {
-      user?: User;
+      user?: AuthenticatedUser;
     }
   }
 }
@@ -117,7 +116,6 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
       req.user = {
         id: decoded.sub,
         email: decoded.email,
-        name: decoded.email.split('@')[0] || 'Unknown', // 이메일에서 이름 추출
         role: decoded.role,
         isActive: true, // User Service에서 발급한 토큰이면 활성 상태로 간주
       };
@@ -195,7 +193,6 @@ export async function optionalAuthMiddleware(req: Request, res: Response, next: 
         req.user = {
           id: decoded.sub,
           email: decoded.email,
-          name: decoded.email.split('@')[0] || 'Unknown',
           role: decoded.role,
           isActive: true,
         };

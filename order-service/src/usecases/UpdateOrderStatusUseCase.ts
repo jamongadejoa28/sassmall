@@ -7,6 +7,12 @@ import { Order } from '../entities/Order';
 import { OrderStatus } from '../entities/OrderStatus';
 import { OrderRepository } from '../adapters/OrderRepository';
 import { ProductServiceAdapter } from '../adapters/ProductServiceAdapter';
+import { 
+  EventPublisher as KafkaEventPublisher,
+  EventFactory,
+  OrderStatusUpdatedEvent,
+  OrderCancelledEvent
+} from '../shared';
 
 export interface UpdateOrderStatusRequest {
   orderId: string;
@@ -45,12 +51,18 @@ export interface NotificationService {
 }
 
 export class UpdateOrderStatusUseCase {
+  private readonly kafkaEventPublisher: KafkaEventPublisher;
+  private readonly eventFactory: EventFactory;
+
   constructor(
     private orderRepository: OrderRepository,
     private productService: ProductServiceAdapter,
     private eventPublisher?: EventPublisher,
     private notificationService?: NotificationService
-  ) {}
+  ) {
+    this.kafkaEventPublisher = new KafkaEventPublisher(['kafka:29092'], 'order-service');
+    this.eventFactory = new EventFactory('order-service', '1.0.0');
+  }
 
   // 단일 주문 상태 업데이트
   async updateStatus(request: UpdateOrderStatusRequest): Promise<UpdateOrderStatusResponse> {
@@ -112,6 +124,14 @@ export class UpdateOrderStatusUseCase {
 
       // 이벤트 발행 (비동기, 실패해도 주문 상태 변경은 성공)
       try {
+        // Kafka 이벤트 발행
+        if (request.newStatus === OrderStatus.CANCELLED) {
+          await this.publishOrderCancelledEvent(updatedOrder, request.reason || '');
+        } else {
+          await this.publishOrderStatusUpdatedEvent(updatedOrder, oldStatus, request.newStatus, request.reason);
+        }
+
+        // 기존 이벤트 발행 (하위 호환성)
         if (this.eventPublisher) {
           await this.eventPublisher.publishOrderStatusChanged(
             request.orderId,
@@ -369,5 +389,171 @@ export class UpdateOrderStatusUseCase {
       // 재고 감소 실패는 로그만 남기고 주문 상태 변경은 계속 진행
       // 실제 운영환경에서는 별도의 보상 트랜잭션이나 알림 시스템 필요
     }
+  }
+
+  // ========================================
+  // Kafka 이벤트 발행
+  // ========================================
+
+  /**
+   * 주문 상태 변경 이벤트 발행
+   */
+  private async publishOrderStatusUpdatedEvent(
+    order: Order,
+    previousStatus: OrderStatus,
+    newStatus: OrderStatus,
+    reason?: string
+  ): Promise<void> {
+    try {
+      // Kafka EventPublisher 연결 확인
+      if (!(await this.kafkaEventPublisher.isConnected())) {
+        await this.kafkaEventPublisher.connect();
+      }
+
+      // OrderStatusUpdatedEvent 생성
+      const orderStatusUpdatedEvent = this.eventFactory.createOrderStatusUpdatedEvent(
+        order.id!,
+        {
+          orderNumber: order.orderNumber!,
+          userId: order.userId,
+          previousStatus,
+          newStatus,
+          reason,
+          trackingNumber: this.getTrackingNumber(order),
+          estimatedDeliveryDate: this.getEstimatedDeliveryDate(order, newStatus),
+          updatedBy: 'system',
+        }
+      );
+
+      // Kafka 이벤트 발행
+      await this.kafkaEventPublisher.publish(orderStatusUpdatedEvent);
+
+      console.log('✅ [OrderService] 주문 상태 변경 이벤트 발행 완료:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        previousStatus,
+        newStatus,
+        reason,
+      });
+
+    } catch (error) {
+      // 이벤트 발행 실패는 로그만 남기고 무시 (비즈니스 로직에 영향 X)
+      console.error('❌ [OrderService] 주문 상태 변경 이벤트 발행 실패:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      // Dead Letter Queue로 실패한 이벤트 전송 시도
+      if (error instanceof Error) {
+        const failedStatusEvent = this.eventFactory.createOrderStatusUpdatedEvent(
+          order.id!,
+          {
+            orderNumber: order.orderNumber!,
+            userId: order.userId,
+            previousStatus,
+            newStatus,
+            reason,
+            trackingNumber: this.getTrackingNumber(order),
+            estimatedDeliveryDate: this.getEstimatedDeliveryDate(order, newStatus),
+              updatedBy: 'system',
+          }
+        );
+        
+        await this.kafkaEventPublisher.sendToDeadLetterQueue(failedStatusEvent, error, 0);
+      }
+    }
+  }
+
+  /**
+   * 주문 취소 이벤트 발행
+   */
+  private async publishOrderCancelledEvent(order: Order, reason: string): Promise<void> {
+    try {
+      // Kafka EventPublisher 연결 확인
+      if (!(await this.kafkaEventPublisher.isConnected())) {
+        await this.kafkaEventPublisher.connect();
+      }
+
+      // OrderCancelledEvent 생성
+      const orderCancelledEvent = this.eventFactory.createOrderCancelledEvent(
+        order.id!,
+        {
+          orderNumber: order.orderNumber!,
+          userId: order.userId,
+          totalAmount: order.totalAmount,
+          cancelReason: reason,
+          refundRequired: true,
+          refundAmount: order.totalAmount, // 전액 환불
+          cancelledBy: 'system',
+          items: order.items.map(item => ({
+            productId: item.productId,
+            sku: item.sku || `SKU-${item.productId.substring(0, 8)}`,
+            quantity: item.quantity,
+          })),
+        }
+      );
+
+      // Kafka 이벤트 발행
+      await this.kafkaEventPublisher.publish(orderCancelledEvent);
+
+      console.log('✅ [OrderService] 주문 취소 이벤트 발행 완료:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        totalAmount: order.totalAmount,
+        reason,
+      });
+
+    } catch (error) {
+      // 이벤트 발행 실패는 로그만 남기고 무시 (비즈니스 로직에 영향 X)
+      console.error('❌ [OrderService] 주문 취소 이벤트 발행 실패:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      // Dead Letter Queue로 실패한 이벤트 전송 시도
+      if (error instanceof Error) {
+        const failedCancelEvent = this.eventFactory.createOrderCancelledEvent(
+          order.id!,
+          {
+            orderNumber: order.orderNumber!,
+            userId: order.userId,
+            totalAmount: order.totalAmount,
+            cancelReason: reason,
+            refundRequired: true,
+            refundAmount: order.totalAmount,
+            cancelledBy: 'system',
+            items: order.items.map(item => ({
+              productId: item.productId,
+              sku: item.sku || `SKU-${item.productId.substring(0, 8)}`,
+              quantity: item.quantity,
+            })),
+          }
+        );
+        
+        await this.kafkaEventPublisher.sendToDeadLetterQueue(failedCancelEvent, error, 0);
+      }
+    }
+  }
+
+  // ========================================
+  // Helper Methods
+  // ========================================
+
+  private getTrackingNumber(order: Order): string | undefined {
+    // 실제 구현에서는 order에서 tracking number 조회
+    // 현재는 Mock 데이터
+    return order.status === OrderStatus.SHIPPING ? `TRACK-${order.id?.substring(0, 8)}` : undefined;
+  }
+
+  private getEstimatedDeliveryDate(order: Order, status: OrderStatus): string | undefined {
+    if (status === OrderStatus.SHIPPING) {
+      // 배송 시작일로부터 3일 후 예상 배송일 설정
+      const estimatedDate = new Date();
+      estimatedDate.setDate(estimatedDate.getDate() + 3);
+      return estimatedDate.toISOString();
+    }
+    return undefined;
   }
 }

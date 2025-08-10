@@ -15,6 +15,7 @@ import { TokenExpirationHandler } from '../../shared/utils/tokenExpiration';
 export interface AuthResult {
   success: boolean;
   error?: string;
+  data?: any; // 응답 데이터 (회원가입 시 토큰 등)
 }
 
 // ========================================
@@ -115,7 +116,10 @@ const authStore = create<AuthState>()(
 
             if (response.success) {
               set({ isLoading: false });
-              return { success: true };
+              return {
+                success: true,
+                data: response.data, // 응답 데이터 포함
+              };
             } else {
               set({ isLoading: false });
               return {

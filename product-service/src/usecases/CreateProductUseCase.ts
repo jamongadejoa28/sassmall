@@ -10,17 +10,20 @@ import {
   ProductRepository,
   CategoryRepository,
   InventoryRepository,
-  EventPublisher,
   CacheService,
   CreateProductRequest,
   CreateProductResponse,
-  Result,
   UseCase,
   DomainError,
   RepositoryError,
-  ProductCreatedEvent,
-  InventoryCreatedEvent,
 } from "./types";
+import { Result } from "../shared/types/Result";
+import { 
+  EventPublisher as KafkaEventPublisher, 
+  EventFactory,
+  ProductAddedEvent,
+  StockUpdatedEvent
+} from "../shared";
 
 /**
  * CreateProductUseCase - 상품 생성 Use Case
@@ -38,6 +41,9 @@ import {
 export class CreateProductUseCase
   implements UseCase<CreateProductRequest, CreateProductResponse>
 {
+  private readonly kafkaEventPublisher: KafkaEventPublisher;
+  private readonly eventFactory: EventFactory;
+
   constructor(
     @inject(TYPES.ProductRepository)
     private readonly productRepository: ProductRepository,
@@ -45,11 +51,12 @@ export class CreateProductUseCase
     private readonly categoryRepository: CategoryRepository,
     @inject(TYPES.InventoryRepository)
     private readonly inventoryRepository: InventoryRepository,
-    @inject(TYPES.EventPublisher)
-    private readonly eventPublisher: EventPublisher,
     @inject(TYPES.CacheService)
     private readonly cacheService: CacheService
-  ) {}
+  ) {
+    this.kafkaEventPublisher = new KafkaEventPublisher(['localhost:9092'], 'product-service');
+    this.eventFactory = new EventFactory('product-service', '1.0.0');
+  }
 
   async execute(
     request: CreateProductRequest
@@ -302,7 +309,7 @@ export class CreateProductUseCase
   }
 
   // ========================================
-  // 도메인 이벤트 발행
+  // 도메인 이벤트 발행 (Kafka)
   // ========================================
 
   private async publishDomainEvents(
@@ -310,34 +317,101 @@ export class CreateProductUseCase
     inventory: Inventory
   ): Promise<void> {
     try {
-      // Product 생성 이벤트 발행
-      const productCreatedEvent: ProductCreatedEvent = {
-        type: "ProductCreated",
+      // Kafka EventPublisher 연결 확인
+      if (!(await this.kafkaEventPublisher.isConnected())) {
+        await this.kafkaEventPublisher.connect();
+      }
+
+      // ProductAddedEvent 생성
+      const productAddedEvent = this.eventFactory.createProductAddedEvent(
+        product.getId(),
+        {
+          name: product.getName(),
+          description: product.getDescription(),
+          price: product.getPrice(),
+          originalPrice: product.getOriginalPrice(),
+          brand: product.getBrand(),
+          sku: product.getSku(),
+          categoryId: product.getCategoryId(),
+          categoryName: await this.getCategoryName(product.getCategoryId()),
+          isActive: product.isActive(),
+          isFeatured: product.isFeatured(),
+          createdBy: 'system', // TODO: 실제 사용자 정보로 교체
+        }
+      );
+
+      // StockUpdatedEvent 생성 (초기 재고 설정)
+      const stockUpdatedEvent = this.eventFactory.createStockUpdatedEvent(
+        product.getId(),
+        {
+          sku: product.getSku(),
+          previousQuantity: 0,
+          newQuantity: inventory.getQuantity(),
+          availableQuantity: inventory.getAvailableQuantity(),
+          changeReason: 'restock',
+          updatedBy: 'system',
+          location: inventory.getLocation(),
+        }
+      );
+
+      // Kafka Producer 연결 확인 및 이벤트 발행
+      try {
+        await this.kafkaEventPublisher.connect();
+        await Promise.all([
+          this.kafkaEventPublisher.publish(productAddedEvent),
+          this.kafkaEventPublisher.publish(stockUpdatedEvent),
+        ]);
+      } catch (kafkaError) {
+        console.warn('⚠️ [ProductService] Kafka 연결 실패, 이벤트 발행 건너뛰기:', kafkaError);
+      }
+
+      console.log('✅ [ProductService] Kafka 이벤트 발행 완료:', {
         productId: product.getId(),
-        productName: product.getName(),
-        categoryId: product.getCategoryId(),
-        price: product.getPrice(),
-        brand: product.getBrand(),
-        createdAt: product.getCreatedAt(),
-      };
+        sku: product.getSku(),
+        events: ['ProductAdded', 'StockUpdated'],
+      });
 
-      // Inventory 생성 이벤트 발행
-      const inventoryCreatedEvent: InventoryCreatedEvent = {
-        type: "InventoryCreated",
-        productId: inventory.getProductId(),
-        quantity: inventory.getQuantity(),
-        location: inventory.getLocation(),
-        createdAt: inventory.getCreatedAt(),
-      };
-
-      // 병렬로 이벤트 발행
-      await Promise.all([
-        this.eventPublisher.publish(productCreatedEvent),
-        this.eventPublisher.publish(inventoryCreatedEvent),
-      ]);
     } catch (error) {
       // 이벤트 발행 실패는 로그만 남기고 무시 (비즈니스 로직에 영향 X)
-      console.error("도메인 이벤트 발행 실패:", error);
+      console.error('❌ [ProductService] Kafka 이벤트 발행 실패:', {
+        productId: product.getId(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      // Dead Letter Queue로 실패한 이벤트 전송 시도
+      if (error instanceof Error) {
+        const failedProductEvent = this.eventFactory.createProductAddedEvent(
+          product.getId(),
+          {
+            name: product.getName(),
+            description: product.getDescription(),
+            price: product.getPrice(),
+            originalPrice: product.getOriginalPrice(),
+            brand: product.getBrand(),
+            sku: product.getSku(),
+            categoryId: product.getCategoryId(),
+            categoryName: 'Unknown',
+            isActive: product.isActive(),
+            isFeatured: product.isFeatured(),
+            createdBy: 'system',
+          }
+        );
+        
+        await this.kafkaEventPublisher.sendToDeadLetterQueue(failedProductEvent, error, 0);
+      }
+    }
+  }
+
+  /**
+   * 카테고리 이름 조회 (이벤트용)
+   */
+  private async getCategoryName(categoryId: string): Promise<string> {
+    try {
+      const category = await this.categoryRepository.findById(categoryId);
+      return category?.getName() || 'Unknown';
+    } catch (error) {
+      console.warn(`카테고리 이름 조회 실패 (${categoryId}):`, error);
+      return 'Unknown';
     }
   }
 
@@ -429,19 +503,19 @@ export class CreateProductUseCase
 
   private handleError(error: unknown): Result<CreateProductResponse> {
     if (error instanceof DomainError) {
-      return Result.fail(error);
+      return Result.fail(error.message);
     }
 
     if (error instanceof RepositoryError) {
-      return Result.fail(error);
+      return Result.fail(error.message);
     }
 
     if (error instanceof Error) {
-      return Result.fail(error);
+      return Result.fail(error.message);
     }
 
     // 예상하지 못한 에러
     console.error("CreateProductUseCase 예상하지 못한 에러:", error);
-    return Result.fail(new Error("상품 생성 중 알 수 없는 오류가 발생했습니다"));
+    return Result.fail("상품 생성 중 알 수 없는 오류가 발생했습니다");
   }
 }

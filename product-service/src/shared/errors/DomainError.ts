@@ -1,48 +1,46 @@
+// Domain Error
 export class DomainError extends Error {
-  public readonly code: string;
-  public readonly statusCode: number;
-  public readonly details?: any;
-
-  constructor(message: string, code: string, statusCode: number = 400, details?: any) {
+  public code: string;
+  public statusCode: number;
+  
+  constructor(message: string, code: string = 'DOMAIN_ERROR', statusCode: number = 400) {
     super(message);
-    this.name = "DomainError";
+    this.name = 'DomainError';
     this.code = code;
     this.statusCode = statusCode;
-    this.details = details;
-
-    // 프로토타입 체인 유지 (TypeScript에서 Error 상속시 필요)
-    Object.setPrototypeOf(this, DomainError.prototype);
   }
 
-  static productNotFound(): DomainError {
-    return new DomainError("상품을 찾을 수 없습니다", "PRODUCT_NOT_FOUND", 404);
+  static invalidInput(message: string = '잘못된 입력입니다'): DomainError {
+    return new DomainError(message, 'INVALID_INPUT', 400);
   }
 
-  static productInactive(): DomainError {
-    return new DomainError(
-      "상품이 비활성화 상태입니다",
-      "PRODUCT_INACTIVE",
-      400
-    );
+  static productNotFound(message: string = '상품을 찾을 수 없습니다'): DomainError {
+    return new DomainError(message, 'PRODUCT_NOT_FOUND', 404);
   }
 
-  static categoryNotFound(): DomainError {
-    return new DomainError(
-      "상품의 카테고리를 찾을 수 없습니다",
-      "CATEGORY_NOT_FOUND",
-      404
-    );
+  static categoryNotFound(message: string = '카테고리를 찾을 수 없습니다'): DomainError {
+    return new DomainError(message, 'CATEGORY_NOT_FOUND', 404);
   }
 
-  static categoryInactive(): DomainError {
-    return new DomainError(
-      "상품의 카테고리가 비활성화 상태입니다",
-      "CATEGORY_INACTIVE",
-      400
-    );
+  static categoryInactive(message: string = '비활성화된 카테고리입니다'): DomainError {
+    return new DomainError(message, 'CATEGORY_INACTIVE', 400);
   }
 
-  static invalidInput(message: string = "잘못된 입력값입니다"): DomainError {
-    return new DomainError(message, "INVALID_INPUT", 400);
+  static productInactive(message: string = '비활성화된 상품입니다'): DomainError {
+    return new DomainError(message, 'PRODUCT_INACTIVE', 400);
+  }
+}
+
+export class ValidationError extends DomainError {
+  constructor(message: string) {
+    super(message, 'VALIDATION_ERROR', 400);
+    this.name = 'ValidationError';
+  }
+}
+
+export class NotFoundError extends DomainError {
+  constructor(resource: string = '리소스') {
+    super(`${resource}를 찾을 수 없습니다.`, 'NOT_FOUND', 404);
+    this.name = 'NotFoundError';
   }
 }

@@ -56,21 +56,21 @@ export class AnswerProductQnAUseCase {
     try {
       // 1. 입력 데이터 기본 검증
       if (!request.qnaId || request.qnaId.trim().length === 0) {
-        return Result.fail(new Error("Q&A ID는 필수입니다."));
+        return Result.fail("Q&A ID는 필수입니다.");
       }
 
       if (!request.answer || request.answer.trim().length === 0) {
-        return Result.fail(new Error("답변 내용은 필수입니다."));
+        return Result.fail("답변 내용은 필수입니다.");
       }
 
       if (!request.answeredBy || request.answeredBy.trim().length === 0) {
-        return Result.fail(new Error("답변자 정보는 필수입니다."));
+        return Result.fail("답변자 정보는 필수입니다.");
       }
 
       // 2. Q&A 존재 여부 확인
       const qna = await this.productQnARepository.findById(request.qnaId);
       if (!qna) {
-        return Result.fail(new Error("Q&A를 찾을 수 없습니다."));
+        return Result.fail("Q&A를 찾을 수 없습니다.");
       }
 
       // 3. 도메인 로직을 통한 답변 처리 (도메인에서 검증)
@@ -112,7 +112,7 @@ export class AnswerProductQnAUseCase {
       return Result.ok(response);
     } catch (error: any) {
       console.error("[AnswerProductQnAUseCase] 실행 오류:", error);
-      return Result.fail(new Error("Q&A 답변 처리 중 오류가 발생했습니다."));
+      return Result.fail("Q&A 답변 처리 중 오류가 발생했습니다.");
     }
   }
 }

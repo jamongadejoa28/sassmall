@@ -116,6 +116,15 @@ export function createUserRoutes(
     asyncErrorCatcher(userController.refreshToken)
   );
 
+  /**
+   * 이메일 인증
+   * GET /api/users/verify-email?token=xxx
+   */
+  router.get(
+    '/verify-email',
+    asyncErrorCatcher(userController.verifyEmail)
+  );
+
   // ========================================
   // 보호된 API (인증 필요)
   // ========================================

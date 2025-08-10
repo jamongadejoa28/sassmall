@@ -19,6 +19,7 @@ import { GetProductStatsUseCase, GetProductStatsRequest } from "../../usecases/G
 import { CreateProductRequest, UpdateProductRequest } from "../../usecases/types";
 import { DomainError } from "../../shared/errors/DomainError";
 import { validationResult } from "express-validator";
+import { Result } from "../../shared/types/Result";
 
 // 새로운 Review/QnA UseCase imports
 import { 
@@ -559,11 +560,12 @@ export class ProductController {
 
       const result = await this.createProductUseCase.execute(createRequest);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "상품이 성공적으로 생성되었습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -571,7 +573,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -697,11 +699,12 @@ export class ProductController {
       // [수정] GetProductDetailUseCase.ts의 execute는 productId(string)를 직접 인자로 받습니다.
       const result = await this.getProductDetailUseCase.execute(req.params.id!);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "상품 상세 정보를 성공적으로 조회했습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -709,7 +712,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -989,11 +992,12 @@ export class ProductController {
 
       const result = await this.getProductListUseCase.execute(getRequest);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "상품 목록을 성공적으로 조회했습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -1001,7 +1005,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -1117,11 +1121,12 @@ export class ProductController {
 
       const result = await this.getProductListUseCase.execute(getRequest);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "관리자용 상품 목록을 성공적으로 조회했습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -1129,7 +1134,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -1215,11 +1220,12 @@ export class ProductController {
 
       const result = await this.getProductReviewsUseCase.execute(request);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "상품 리뷰 목록을 성공적으로 조회했습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -1227,7 +1233,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -1313,11 +1319,12 @@ export class ProductController {
 
       const result = await this.createProductReviewUseCase.execute(request);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "상품 리뷰가 성공적으로 작성되었습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -1325,7 +1332,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -1413,11 +1420,12 @@ export class ProductController {
 
       const result = await this.getProductQnAUseCase.execute(request);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "상품 Q&A 목록을 성공적으로 조회했습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -1425,7 +1433,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -1522,11 +1530,12 @@ export class ProductController {
 
       const result = await this.createProductQnAUseCase.execute(request);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "상품 Q&A가 성공적으로 작성되었습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -1534,7 +1543,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -1609,11 +1618,12 @@ export class ProductController {
 
       const result = await this.answerProductQnAUseCase.execute(request);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "Q&A 답변이 성공적으로 작성되었습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -1621,7 +1631,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -1718,11 +1728,12 @@ export class ProductController {
 
       const result = await this.getAllProductQnAForAdminUseCase.execute(request);
 
-      if (result.success) {
-        const response: ApiResponse<typeof result.data> = {
+      if (result.isSuccess) {
+        const responseData = result.getValue();
+        const response: ApiResponse<typeof responseData> = {
           success: true,
           message: "관리자 Q&A 목록을 성공적으로 조회했습니다",
-          data: result.data!,
+          data: responseData,
           timestamp: new Date().toISOString(),
           requestId: (req.headers["x-request-id"] as string) || "unknown",
         };
@@ -1730,7 +1741,7 @@ export class ProductController {
       } else {
         this.handleError(
           res,
-          result.error!,
+          result.getError(),
           req.headers["x-request-id"] as string
         );
       }
@@ -1748,30 +1759,33 @@ export class ProductController {
    */
   private handleError(
     res: Response,
-    error: string | Error,
-    requestId: string
+    errorMessage: string,
+    requestId: string,
+    statusCode: number = 500,
+    errorCode: string = "INTERNAL_ERROR"
   ): void {
-    let statusCode = 500;
-    let errorCode = "INTERNAL_ERROR";
-    let message = "서버 내부 오류가 발생했습니다";
+    let message = errorMessage;
 
-    if (error instanceof DomainError) {
-      statusCode = error.statusCode;
-      errorCode = error.code;
-      message = error.message;
-    } else if (typeof error === "string") {
-      message = error;
-    } else if (error instanceof Error) {
-      message = error.message;
-    }
-
-    // [수정] exactOptionalPropertyTypes 규칙을 준수하도록 error 객체를 구성합니다.
     const errorResponsePart: { code: string; details?: string } = {
       code: errorCode,
     };
 
-    if (error instanceof Error && error.stack) {
-      errorResponsePart.details = error.stack;
+    // Basic parsing for common DomainError codes if embedded in the message
+    if (message.includes("PRODUCT_NOT_FOUND")) {
+      statusCode = 404;
+      errorCode = "PRODUCT_NOT_FOUND";
+    } else if (message.includes("INVALID_INPUT")) {
+      statusCode = 400;
+      errorCode = "INVALID_INPUT";
+    } else if (message.includes("CATEGORY_NOT_FOUND")) {
+      statusCode = 404;
+      errorCode = "CATEGORY_NOT_FOUND";
+    } else if (message.includes("CATEGORY_INACTIVE")) {
+      statusCode = 400;
+      errorCode = "CATEGORY_INACTIVE";
+    } else if (message.includes("SKU_ALREADY_EXISTS")) {
+      statusCode = 409;
+      errorCode = "SKU_ALREADY_EXISTS";
     }
 
     const response: ApiResponse<null> = {
@@ -1858,7 +1872,7 @@ export class ProductController {
       // UseCase 실행
       const result = await this.toggleProductStatusUseCase.execute(toggleRequest);
 
-      if (result.isSuccess()) {
+      if (result.isSuccess) {
         const responseData = result.getValue();
         const response: ApiResponse<typeof responseData> = {
           success: true,
@@ -1869,20 +1883,11 @@ export class ProductController {
         };
         res.status(200).json(response);
       } else {
-        const error = result.getError();
-        if (error instanceof DomainError) {
-          const statusCode = error.statusCode || 400;
-          const response: ApiResponse<null> = {
-            success: false,
-            message: error.message,
-            data: null,
-            timestamp: new Date().toISOString(),
-            requestId,
-          };
-          res.status(statusCode).json(response);
-        } else {
-          throw error;
-        }
+        this.handleError(
+          res,
+          result.getError(),
+          requestId
+        );
       }
     } catch (error) {
       console.error("[ProductController] 상품 상태 토글 오류:", {
@@ -1962,11 +1967,12 @@ export class ProductController {
 
         res.status(200).json(response);
       } else {
-        const statusCode = result.error?.includes('찾을 수 없습니다') ? 404 : 400;
+        const error = result.error;
+        const statusCode = error?.includes('찾을 수 없습니다') ? 404 : 400;
         
         const response: ApiResponse<null> = {
           success: false,
-          message: result.error || "재고 업데이트에 실패했습니다",
+          message: error || "재고 업데이트에 실패했습니다",
           error: {
             code: statusCode === 404 ? "PRODUCT_NOT_FOUND" : "INVENTORY_UPDATE_FAILED"
           },
@@ -2012,8 +2018,8 @@ export class ProductController {
       let existingProduct = null;
       try {
         const existingResult = await this.getProductDetailUseCase.execute(req.params.id as string);
-        if (existingResult.success && existingResult.data) {
-          existingProduct = existingResult.data;
+        if (existingResult.isSuccess) {
+          existingProduct = existingResult.getValue();
           console.log('[ProductController] 기존 상품 정보 조회 성공:', {
             productId: existingProduct.id,
             hasImages: !!(existingProduct.image_urls && existingProduct.image_urls.length > 0),

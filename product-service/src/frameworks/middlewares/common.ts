@@ -5,7 +5,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { HTTP_HEADERS, ApiResponse } from "../../shared/types";
+import { ApiResponse } from "../../shared/types";
 import { logger } from "../../infrastructure/logging/Logger";
 
 /**
@@ -17,9 +17,9 @@ export function requestIdMiddleware(
   next: NextFunction
 ): void {
   const requestId =
-    (req.headers[HTTP_HEADERS.REQUEST_ID] as string) || uuidv4();
+    (req.headers['x-request-id'] as string) || uuidv4();
   (req as any).requestId = requestId;
-  res.setHeader(HTTP_HEADERS.REQUEST_ID, requestId);
+  res.setHeader('X-Request-ID', requestId);
   next();
 }
 

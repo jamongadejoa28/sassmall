@@ -269,6 +269,7 @@ if (process.env.NODE_ENV === 'development') {
   console.log('   📝 Auth 라우트:');
   console.log('      - POST /api/v1/auth/login');
   console.log('      - POST /api/v1/auth/register');
+  console.log('      - GET  /api/v1/auth/verify-email');
   console.log('      - POST /api/v1/auth/pass-verification/request');
   console.log('      - GET  /api/v1/auth/pass-verification/status/:sessionId');
   console.log('      - POST /api/v1/auth/pass-verification/callback');

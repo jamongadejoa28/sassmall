@@ -122,7 +122,7 @@ export class GetProductListUseCase {
       const validationError = this.validateInput(request);
       if (validationError) {
         // ✅ 수정: DomainError 객체 전달
-        return Result.fail(new DomainError(validationError, "INVALID_INPUT"));
+        return Result.fail(validationError);
       }
 
       // 2. 정규화된 파라미터 생성
@@ -208,15 +208,12 @@ export class GetProductListUseCase {
       console.error("GetProductListUseCase 실행 오류:", error);
       
       if (error instanceof DomainError) {
-        return Result.fail(error);
+        return Result.fail(error.message);
       }
 
       const errorMessage = error instanceof Error ? error.message : "알 수 없는 오류";
       return Result.fail(
-        new DomainError(
-          `상품 목록 조회 중 오류가 발생했습니다: ${errorMessage}`,
-          "INTERNAL_ERROR"
-        )
+        `상품 목록 조회 중 오류가 발생했습니다: ${errorMessage}`
       );
     }
   }

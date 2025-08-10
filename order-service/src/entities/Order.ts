@@ -15,6 +15,7 @@ export interface CreateOrderData {
     detailAddress?: string;
     recipientName: string;
     recipientPhone: string;
+    city?: string;
   };
   paymentMethod: 'KAKAOPAY' | 'CARD' | 'BANK_TRANSFER' | 'TOSSPAYMENTS';
   memo?: string;
@@ -39,6 +40,7 @@ export class Order {
     detailAddress?: string;
     recipientName: string;
     recipientPhone: string;
+    city?: string;
   };
   public paymentMethod: 'KAKAOPAY' | 'CARD' | 'BANK_TRANSFER' | 'TOSSPAYMENTS';
   public paymentId?: string;

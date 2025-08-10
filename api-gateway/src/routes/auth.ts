@@ -317,6 +317,55 @@ router.post(
 );
 
 /**
+ * @route GET /auth/verify-email
+ * @desc 이메일 인증 - User Service로 프록시
+ */
+router.get(
+  '/verify-email',
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      logger.info('Proxying email verification request to User Service', {
+        userServiceUrl: USER_SERVICE_URL,
+        requestId: req.id,
+        token: req.query.token ? 'provided' : 'missing',
+      });
+
+      const response = await axios.get(
+        `${USER_SERVICE_URL}/api/users/verify-email`,
+        {
+          params: req.query, // 토큰을 쿼리 파라미터로 전달
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-ID': req.id,
+          },
+          timeout: 10000,
+        }
+      );
+
+      res.status(response.status).json(response.data);
+    } catch (error: unknown) {
+      logger.error('Email verification proxy error:', error);
+
+      if (isAxiosError(error) && error.response) {
+        res
+          .status(error.response.status || HTTP_STATUS.INTERNAL_SERVER_ERROR)
+          .json(error.response.data);
+      } else {
+        const response: ApiResponse = {
+          success: false,
+          data: null,
+          error:
+            'User Service에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.',
+          timestamp: new Date().toISOString(),
+          requestId: req.id,
+        };
+        res.status(HTTP_STATUS.SERVICE_UNAVAILABLE).json(response);
+      }
+    }
+  })
+);
+
+/**
  * @route POST /auth/logout
  * @desc 로그아웃 - User Service로 프록시
  */
